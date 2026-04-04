@@ -259,7 +259,7 @@
             border-radius: 50%;
         }
         
-        /* Indicator List */
+        /* Indicator Charts */
         .indicator-section {
             background: #fff;
             border-radius: 10px;
@@ -269,52 +269,33 @@
             margin-bottom: 24px;
         }
         
-        .indicator-grid {
+        .indicator-charts-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 12px;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
         }
         
-        .indicator-item {
-            display: flex;
-            align-items: center;
-            padding: 12px;
-            border-radius: 8px;
+        @media (max-width: 900px) {
+            .indicator-charts-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .indicator-chart-card {
             background: #f8fafc;
-            gap: 12px;
+            border-radius: 8px;
+            padding: 16px;
         }
         
-        .indicator-level {
-            width: 6px;
-            height: 40px;
-            border-radius: 3px;
-        }
-        
-        .indicator-level.green { background: #52c41a; }
-        .indicator-level.blue { background: #4A90E2; }
-        .indicator-level.yellow { background: #ffc107; }
-        .indicator-level.red { background: #ff4d4f; }
-        
-        .indicator-info {
-            flex: 1;
-        }
-        
-        .indicator-name {
+        .indicator-chart-title {
             font-size: 13px;
-            font-weight: 500;
-            color: #333;
-        }
-        
-        .indicator-desc {
-            font-size: 11px;
-            color: #8c98a9;
-            margin-top: 2px;
-        }
-        
-        .indicator-value {
-            font-size: 18px;
             font-weight: 600;
             color: #1a365d;
+            margin-bottom: 12px;
+        }
+        
+        .indicator-chart-container {
+            height: 250px;
         }
         
         /* Report Section */
@@ -448,8 +429,15 @@
             <div class="tab-bar" id="indicatorTabs">
                 <!-- Tabs will be generated dynamically -->
             </div>
-            <div class="indicator-grid" id="indicatorGrid">
-                <div class="loading">请选择专业查看指标详情</div>
+            <div class="indicator-charts-grid">
+                <div class="indicator-chart-card">
+                    <div class="indicator-chart-title">各项指标得分</div>
+                    <div class="indicator-chart-container" id="indicatorBarChart"></div>
+                </div>
+                <div class="indicator-chart-card">
+                    <div class="indicator-chart-title">各项指标得分率</div>
+                    <div class="indicator-chart-container" id="indicatorHorizontalChart"></div>
+                </div>
             </div>
         </div>
         
@@ -470,7 +458,7 @@
         let allWarnings = [];
         let allReports = [];
         let selectedMajor = null;
-        let lineChart, radarChart;
+        let lineChart, radarChart, barChart, horizontalBarChart;
         
         // API Base URL
         const API_BASE = window.location.origin;
@@ -599,22 +587,145 @@
             }
         }
         
-        // Load indicators for a major
+        // Load indicators for a major and render bar charts
         async function loadIndicators(majorId) {
             const res = await fetch(`${API_BASE}/api/indicators/${majorId}`);
             const data = await res.json();
             
-            const grid = document.getElementById('indicatorGrid');
-            grid.innerHTML = data.indicators.map(ind => `
-                <div class="indicator-item">
-                    <div class="indicator-level ${ind.level}"></div>
-                    <div class="indicator-info">
-                        <div class="indicator-name">${ind.name}</div>
-                        <div class="indicator-desc">权重 ${ind.weight} 分 | 原始值 ${ind.raw}${ind.unit}</div>
-                    </div>
-                    <div class="indicator-value">${ind.score.toFixed(1)}</div>
-                </div>
-            `).join('');
+            renderBarCharts(data.indicators);
+        }
+        
+        // Render bar charts for indicators
+        function renderBarCharts(indicators) {
+            // Chart 1: Score comparison bar chart
+            const barDom = document.getElementById('indicatorBarChart');
+            if (barDom) {
+                if (barChart) barChart.dispose();
+                barChart = echarts.init(barDom);
+                
+                const sortedIndicators = [...indicators].sort((a, b) => (b.score / b.weight) - (a.score / a.weight));
+                
+                const barOption = {
+                    backgroundColor: 'transparent',
+                    tooltip: {
+                        trigger: 'axis',
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        borderColor: '#e8ecf0',
+                        textStyle: { color: '#333' },
+                        formatter: function(params) {
+                            const ind = sortedIndicators[params[0].dataIndex];
+                            return `${ind.name}<br/>得分: ${ind.score} / ${ind.weight}<br/>得分率: ${ind.percentage}%`;
+                        }
+                    },
+                    grid: { left: '3%', right: '8%', bottom: '3%', top: '3%', containLabel: true },
+                    xAxis: {
+                        type: 'value',
+                        max: function(value) { return Math.ceil(value.max / 5) * 5 + 2; },
+                        axisLabel: { color: '#666' },
+                        splitLine: { lineStyle: { color: '#e8ecf0' } }
+                    },
+                    yAxis: {
+                        type: 'category',
+                        data: sortedIndicators.map(i => i.name),
+                        axisLabel: { color: '#666', fontSize: 11 },
+                        axisLine: { lineStyle: { color: '#e8ecf0' } }
+                    },
+                    series: [{
+                        type: 'bar',
+                        data: sortedIndicators.map(ind => {
+                            let color = colors.green;
+                            if (ind.level === 'yellow') color = colors.yellow;
+                            else if (ind.level === 'red') color = colors.red;
+                            else if (ind.level === 'blue') color = colors.blue;
+                            
+                            return {
+                                value: ind.score,
+                                itemStyle: {
+                                    color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
+                                        { offset: 0, color: color },
+                                        { offset: 1, color: color + '99' }
+                                    ]),
+                                    borderRadius: [0, 4, 4, 0]
+                                }
+                            };
+                        }),
+                        barWidth: '60%',
+                        label: {
+                            show: true,
+                            position: 'right',
+                            formatter: '{c}',
+                            color: '#666',
+                            fontSize: 11
+                        }
+                    }]
+                };
+                
+                barChart.setOption(barOption);
+            }
+            
+            // Chart 2: Horizontal bar chart for score rate
+            const hBarDom = document.getElementById('indicatorHorizontalChart');
+            if (hBarDom) {
+                if (horizontalBarChart) horizontalBarChart.dispose();
+                horizontalBarChart = echarts.init(hBarDom);
+                
+                const option = {
+                    backgroundColor: 'transparent',
+                    tooltip: {
+                        trigger: 'axis',
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        borderColor: '#e8ecf0',
+                        textStyle: { color: '#333' },
+                        formatter: function(params) {
+                            const ind = indicators[params[0].dataIndex];
+                            return `${ind.name}<br/>得分率: ${ind.percentage}%`;
+                        }
+                    },
+                    grid: { left: '3%', right: '12%', bottom: '3%', top: '3%', containLabel: true },
+                    xAxis: {
+                        type: 'value',
+                        max: 100,
+                        axisLabel: { color: '#666', formatter: '{value}%' },
+                        splitLine: { lineStyle: { color: '#e8ecf0' } }
+                    },
+                    yAxis: {
+                        type: 'category',
+                        data: indicators.map(i => i.name),
+                        axisLabel: { color: '#666', fontSize: 11 },
+                        axisLine: { lineStyle: { color: '#e8ecf0' } }
+                    },
+                    series: [{
+                        type: 'bar',
+                        data: indicators.map(ind => {
+                            let color = colors.green;
+                            if (ind.percentage < 60) color = colors.red;
+                            else if (ind.percentage < 75) color = colors.yellow;
+                            else if (ind.percentage < 85) color = colors.blue;
+                            
+                            return {
+                                value: ind.percentage,
+                                itemStyle: {
+                                    color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
+                                        { offset: 0, color: color },
+                                        { offset: 1, color: color + '99' }
+                                    ]),
+                                    borderRadius: [0, 4, 4, 0]
+                                }
+                            };
+                        }),
+                        barWidth: '50%',
+                        label: {
+                            show: true,
+                            position: 'right',
+                            formatter: '{c}%',
+                            color: '#666',
+                            fontSize: 11
+                        }
+                    }]
+                };
+                
+                horizontalBarChart.setOption(option);
+            }
         }
         
         // Show report
@@ -796,6 +907,8 @@
         window.addEventListener('resize', () => {
             if (lineChart) lineChart.resize();
             if (radarChart) radarChart.resize();
+            if (barChart) barChart.resize();
+            if (horizontalBarChart) horizontalBarChart.resize();
         });
         
         // Start
