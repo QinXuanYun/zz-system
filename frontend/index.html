@@ -428,23 +428,37 @@
         <!-- Indicators Detail -->
         <div class="indicator-section">
             <div class="section-title">指标详情</div>
-            <div class="tab-bar" id="indicatorTabs">
-                <!-- Tabs will be generated dynamically -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <div class="tab-bar" id="indicatorTabs">
+                    <!-- Tabs will be generated dynamically -->
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <span style="font-size: 12px; color: #666;">选择学年:</span>
+                    <select id="yearSelect" onchange="changeYear(this.value)" style="padding: 6px 12px; border-radius: 6px; border: 1px solid #e8ecf0; font-size: 13px; color: #333; background: #fff; cursor: pointer;">
+                        <option value="2020">2020学年</option>
+                        <option value="2019">2019学年</option>
+                        <option value="2018">2018学年</option>
+                    </select>
+                </div>
             </div>
             <div class="indicator-chart-full">
                 <div class="indicator-chart-container" id="indicatorChart"></div>
                 <div class="chart-legend-row">
                     <div class="chart-legend-item">
-                        <div class="chart-legend-color" style="background: rgba(255, 77, 79, 0.6);"></div>
-                        <span>预警区 (红色预警)</span>
+                        <div class="chart-legend-color" style="background: rgba(255, 77, 79, 0.7);"></div>
+                        <span>红色预警区</span>
                     </div>
                     <div class="chart-legend-item">
-                        <div class="chart-legend-color" style="background: rgba(255, 193, 7, 0.6);"></div>
-                        <span>预警区 (黄色预警)</span>
+                        <div class="chart-legend-color" style="background: rgba(255, 193, 7, 0.7);"></div>
+                        <span>黄色预警区</span>
                     </div>
                     <div class="chart-legend-item">
-                        <div class="chart-legend-color" style="background: rgba(74, 144, 226, 0.4);"></div>
+                        <div class="chart-legend-color" style="background: rgba(74, 144, 226, 0.7);"></div>
                         <span>正常区</span>
+                    </div>
+                    <div class="chart-legend-item">
+                        <div class="chart-legend-color" style="background: rgba(82, 196, 26, 0.7);"></div>
+                        <span>安全区</span>
                     </div>
                 </div>
             </div>
@@ -467,6 +481,7 @@
         let allWarnings = [];
         let allReports = [];
         let selectedMajor = null;
+        let selectedYear = '2020';
         let lineChart, radarChart, barChart, horizontalBarChart, indicatorChart;
         
         // API Base URL
@@ -604,7 +619,7 @@
             renderIndicatorChart(data.indicators);
         }
         
-        // Render indicator chart matching reference image style - floating bars over time
+        // Render indicator chart matching reference image style - monthly data with year selector
         function renderIndicatorChart(indicators) {
             const chartDom = document.getElementById('indicatorChart');
             if (!chartDom) return;
@@ -612,23 +627,36 @@
             if (indicatorChart) indicatorChart.dispose();
             indicatorChart = echarts.init(chartDom);
             
-            // Time periods (mock data for 3 years to match reference image)
-            const years = ['2018学年', '2019学年', '2020学年'];
+            // Months of the school year
+            const months = ['9月', '10月', '11月', '12月', '1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月'];
             
-            // Create mock historical data with some variance
-            const mockData = indicators.map((ind, idx) => {
+            // Create monthly mock data for each indicator
+            const mockData = indicators.map((ind) => {
                 const baseRate = ind.percentage;
-                // Generate some variation for different years
+                // Generate monthly variation based on the indicator
+                const monthlyData = months.map((month, idx) => {
+                    // Simulate some fluctuation throughout the year
+                    const seasonalFactor = 1 + (Math.sin((idx / 12) * Math.PI) * 0.1);
+                    const randomFactor = 0.9 + Math.random() * 0.2;
+                    return Math.min(100, Math.max(0, baseRate * seasonalFactor * randomFactor));
+                });
+                
                 return {
                     name: ind.name,
                     level: ind.level,
-                    data: [
-                        Math.min(100, baseRate * (0.85 + Math.random() * 0.15)),
-                        Math.min(100, baseRate * (0.90 + Math.random() * 0.15)),
-                        baseRate
-                    ]
+                    data: monthlyData
                 };
             });
+            
+            // Color mapping for warning levels
+            const getColor = (level, alpha = 0.7) => {
+                switch(level) {
+                    case 'red': return `rgba(255, 77, 79, ${alpha})`;
+                    case 'yellow': return `rgba(255, 193, 7, ${alpha})`;
+                    case 'green': return `rgba(82, 196, 26, ${alpha})`;
+                    default: return `rgba(74, 144, 226, ${alpha})`;
+                }
+            };
             
             const option = {
                 backgroundColor: 'transparent',
@@ -638,25 +666,40 @@
                     borderColor: '#e8ecf0',
                     textStyle: { color: '#333' },
                     formatter: function(params) {
-                        const year = years[params[0].dataIndex];
-                        return `${year}<br/>${params.map(p => `${p.seriesName}: ${p.value.toFixed(1)}%`).join('<br/>')}`;
+                        const month = months[params[0].dataIndex];
+                        return `${selectedYear}学年 ${month}<br/>${params.map(p => {
+                            const level = p.seriesName.includes('招生') ? 'blue' :
+                                         p.seriesName.includes('满意') ? 'green' :
+                                         p.seriesName.includes('资格') ? 'yellow' :
+                                         p.seriesName.includes('就业') ? 'blue' :
+                                         p.seriesName.includes('双师') ? 'green' :
+                                         p.seriesName.includes('高级') ? 'yellow' :
+                                         p.seriesName.includes('高技术') ? 'red' :
+                                         p.seriesName.includes('论文') ? 'yellow' :
+                                         p.seriesName.includes('实践') ? 'green' : 'blue';
+                            return `<span style="display:inline-block;margin-right:5px;border-radius:2px;width:10px;height:10px;background-color:${getColor(level, 1)}"></span>${p.seriesName}: ${p.value.toFixed(1)}%`;
+                        }).join('<br/>')}`;
                     }
                 },
                 legend: {
-                    show: false
+                    show: true,
+                    bottom: 0,
+                    textStyle: { color: '#666', fontSize: 11 },
+                    type: 'scroll',
+                    pageTextStyle: { color: '#666' }
                 },
                 grid: {
                     left: '3%',
                     right: '4%',
-                    bottom: '15%',
+                    bottom: '18%',
                     top: '5%',
                     containLabel: true
                 },
                 xAxis: {
                     type: 'category',
-                    data: years,
+                    data: months,
                     axisLine: { lineStyle: { color: '#d9d9d9' } },
-                    axisLabel: { color: '#666', fontSize: 12 },
+                    axisLabel: { color: '#666', fontSize: 11 },
                     axisTick: { show: false }
                 },
                 yAxis: {
@@ -676,48 +719,38 @@
                     axisLine: { show: false },
                     axisTick: { show: false }
                 },
-                series: mockData.map((ind, idx) => {
-                    // Determine bar color based on level
-                    let color = colors.blue; // default blue (normal)
-                    let borderColor = colors.blue;
-                    
-                    if (ind.level === 'red') {
-                        color = 'rgba(255, 77, 79, 0.7)';
-                        borderColor = colors.red;
-                    } else if (ind.level === 'yellow') {
-                        color = 'rgba(255, 193, 7, 0.7)';
-                        borderColor = colors.yellow;
-                    } else if (ind.level === 'green') {
-                        color = 'rgba(82, 196, 26, 0.7)';
-                        borderColor = colors.green;
-                    }
-                    
+                series: mockData.map((ind) => {
                     return {
                         name: ind.name,
                         type: 'bar',
-                        stack: 'total',
-                        barWidth: '35%',
+                        barWidth: '50%',
                         itemStyle: {
-                            color: color,
-                            borderColor: borderColor,
-                            borderWidth: 1,
+                            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                { offset: 0, color: getColor(ind.level, 0.9) },
+                                { offset: 1, color: getColor(ind.level, 0.6) }
+                            ]),
                             borderRadius: [4, 4, 0, 0]
                         },
                         emphasis: {
                             itemStyle: {
-                                borderColor: borderColor,
+                                borderColor: getColor(ind.level, 1),
                                 borderWidth: 2
                             }
                         },
-                        data: ind.data,
-                        label: {
-                            show: false
-                        }
+                        data: ind.data
                     };
                 })
             };
             
             indicatorChart.setOption(option);
+        }
+        
+        // Change year and re-render chart
+        function changeYear(year) {
+            selectedYear = year;
+            if (selectedMajor) {
+                loadIndicators(selectedMajor);
+            }
         }
         
         // Show report
