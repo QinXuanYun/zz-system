@@ -612,23 +612,38 @@
             if (indicatorChart) indicatorChart.dispose();
             indicatorChart = echarts.init(chartDom);
             
+            // Select key indicators (top 6 by importance)
+            const keyIndicatorIds = ['X1', 'X2', 'X3', 'X4', 'X5', 'X7'];
+            const keyIndicators = indicators.filter(ind => keyIndicatorIds.includes(ind.id));
+            
             // Time periods (mock data for 3 years to match reference image)
             const years = ['2018学年', '2019学年', '2020学年'];
             
             // Create mock historical data with some variance
-            const mockData = indicators.map((ind, idx) => {
+            const mockData = keyIndicators.map((ind) => {
                 const baseRate = ind.percentage;
                 // Generate some variation for different years
+                const variance = () => 0.85 + Math.random() * 0.3;
                 return {
                     name: ind.name,
                     level: ind.level,
                     data: [
-                        Math.min(100, baseRate * (0.85 + Math.random() * 0.15)),
-                        Math.min(100, baseRate * (0.90 + Math.random() * 0.15)),
+                        Math.min(100, baseRate * variance()),
+                        Math.min(100, baseRate * variance()),
                         baseRate
                     ]
                 };
             });
+            
+            // Color mapping
+            const getColor = (level) => {
+                switch(level) {
+                    case 'red': return colors.red;
+                    case 'yellow': return colors.yellow;
+                    case 'green': return colors.green;
+                    default: return colors.blue;
+                }
+            };
             
             const option = {
                 backgroundColor: 'transparent',
@@ -639,16 +654,23 @@
                     textStyle: { color: '#333' },
                     formatter: function(params) {
                         const year = years[params[0].dataIndex];
-                        return `${year}<br/>${params.map(p => `${p.seriesName}: ${p.value.toFixed(1)}%`).join('<br/>')}`;
+                        return `${year}<br/>${params.map(p => {
+                            const colorDot = `<span style="display:inline-block;margin-right:5px;border-radius:50%;width:10px;height:10px;background-color:${p.color}"></span>`;
+                            return `${colorDot}${p.seriesName}: ${p.value.toFixed(1)}%`;
+                        }).join('<br/>')}`;
                     }
                 },
                 legend: {
-                    show: false
+                    show: true,
+                    bottom: 0,
+                    textStyle: { color: '#666', fontSize: 11 },
+                    type: 'scroll',
+                    pageTextStyle: { color: '#666' }
                 },
                 grid: {
                     left: '3%',
                     right: '4%',
-                    bottom: '15%',
+                    bottom: '20%',
                     top: '5%',
                     containLabel: true
                 },
@@ -677,42 +699,24 @@
                     axisTick: { show: false }
                 },
                 series: mockData.map((ind, idx) => {
-                    // Determine bar color based on level
-                    let color = colors.blue; // default blue (normal)
-                    let borderColor = colors.blue;
-                    
-                    if (ind.level === 'red') {
-                        color = 'rgba(255, 77, 79, 0.7)';
-                        borderColor = colors.red;
-                    } else if (ind.level === 'yellow') {
-                        color = 'rgba(255, 193, 7, 0.7)';
-                        borderColor = colors.yellow;
-                    } else if (ind.level === 'green') {
-                        color = 'rgba(82, 196, 26, 0.7)';
-                        borderColor = colors.green;
-                    }
-                    
                     return {
                         name: ind.name,
                         type: 'bar',
-                        stack: 'total',
-                        barWidth: '35%',
+                        barWidth: '50%',
                         itemStyle: {
-                            color: color,
-                            borderColor: borderColor,
-                            borderWidth: 1,
+                            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                { offset: 0, color: getColor(ind.level) },
+                                { offset: 1, color: getColor(ind.level) + '99' }
+                            ]),
                             borderRadius: [4, 4, 0, 0]
                         },
                         emphasis: {
                             itemStyle: {
-                                borderColor: borderColor,
+                                borderColor: getColor(ind.level),
                                 borderWidth: 2
                             }
                         },
-                        data: ind.data,
-                        label: {
-                            show: false
-                        }
+                        data: ind.data
                     };
                 })
             };
