@@ -1,0 +1,112 @@
+{
+  "majors": [
+    {
+      "id": "feixingqi",
+      "name": "飞行器制造技术",
+      "totalScore": 25.52,
+      "scoreRate": 0.543,
+      "indicators": [
+        {"id": "X1", "name": "招生计划完成率", "weight": 5, "raw": 0.6889, "score": 3.44, "unit": "%"},
+        {"id": "X2", "name": "在校生满意度", "weight": 4, "raw": 0.945, "score": 3.96, "unit": ""},
+        {"id": "X3", "name": "毕业生满意度", "weight": 4, "raw": 0.8703, "score": 3.54, "unit": ""},
+        {"id": "X4", "name": "职业资格证书率", "weight": 4, "raw": 0.5143, "score": 1.54, "unit": ""},
+        {"id": "X5", "name": "就业去向落实率", "weight": 5, "raw": 1.0, "score": 5, "unit": ""},
+        {"id": "X6", "name": "企业订单学生占比", "weight": 4, "raw": 0.3804, "score": 4, "unit": ""},
+        {"id": "X7", "name": "双师型专任教师占比", "weight": 4, "raw": 0.5, "score": 2, "unit": ""},
+        {"id": "X8", "name": "高级职称专任教师占比", "weight": 4, "raw": 0, "score": 0, "unit": ""},
+        {"id": "X9", "name": "高技术技能人才占比", "weight": 4, "raw": 0, "score": 0, "unit": ""},
+        {"id": "X10", "name": "师均论文著作课题数", "weight": 5, "raw": 0.5, "score": 1.25, "unit": ""},
+        {"id": "X11", "name": "教师人均企业实践时间", "weight": 4, "raw": 24.5, "score": 2.33, "unit": "天"}
+      ]
+    },
+    {
+      "id": "jidian",
+      "name": "机电一体化技术",
+      "totalScore": 21.14,
+      "scoreRate": 0.450,
+      "indicators": [
+        {"id": "X1", "name": "招生计划完成率", "weight": 5, "raw": 0.875, "score": 4.38, "unit": "%"},
+        {"id": "X2", "name": "在校生满意度", "weight": 4, "raw": 0.891, "score": 3.73, "unit": ""},
+        {"id": "X3", "name": "毕业生满意度", "weight": 4, "raw": 0.9567, "score": 3.89, "unit": ""},
+        {"id": "X4", "name": "职业资格证书率", "weight": 4, "raw": 0.8333, "score": 2.50, "unit": ""},
+        {"id": "X5", "name": "就业去向落实率", "weight": 5, "raw": 1.0, "score": 5, "unit": ""},
+        {"id": "X6", "name": "企业订单学生占比", "weight": 4, "raw": 0, "score": 0, "unit": ""},
+        {"id": "X7", "name": "双师型专任教师占比", "weight": 4, "raw": 0.5, "score": 2, "unit": ""},
+        {"id": "X8", "name": "高级职称专任教师占比", "weight": 4, "raw": 0, "score": 0, "unit": ""},
+        {"id": "X9", "name": "高技术技能人才占比", "weight": 4, "raw": 0, "score": 0, "unit": ""},
+        {"id": "X10", "name": "师均论文著作课题数", "weight": 5, "raw": 0, "score": 0, "unit": ""},
+        {"id": "X11", "name": "教师人均企业实践时间", "weight": 4, "raw": 22.5, "score": 2.14, "unit": "天"}
+      ]
+    },
+    {
+      "id": "qiche",
+      "name": "汽车运用与维修技术",
+      "totalScore": 27.40,
+      "scoreRate": 0.583,
+      "indicators": [
+        {"id": "X1", "name": "招生计划完成率", "weight": 5, "raw": 1.0541, "score": 5, "unit": "%"},
+        {"id": "X2", "name": "在校生满意度", "weight": 4, "raw": 0.945, "score": 3.96, "unit": ""},
+        {"id": "X3", "name": "毕业生满意度", "weight": 4, "raw": 0.9061, "score": 3.68, "unit": ""},
+        {"id": "X4", "name": "职业资格证书率", "weight": 4, "raw": 0.8846, "score": 2.65, "unit": ""},
+        {"id": "X5", "name": "就业去向落实率", "weight": 5, "raw": 0.9231, "score": 4.62, "unit": ""},
+        {"id": "X6", "name": "企业订单学生占比", "weight": 4, "raw": 0, "score": 0, "unit": ""},
+        {"id": "X7", "name": "双师型专任教师占比", "weight": 4, "raw": 0.75, "score": 3, "unit": ""},
+        {"id": "X8", "name": "高级职称专任教师占比", "weight": 4, "raw": 0.25, "score": 1, "unit": ""},
+        {"id": "X9", "name": "高技术技能人才占比", "weight": 4, "raw": 0.25, "score": 4, "unit": ""},
+        {"id": "X10", "name": "师均论文著作课题数", "weight": 5, "raw": 0, "score": 0, "unit": ""},
+        {"id": "X11", "name": "教师人均企业实践时间", "weight": 4, "raw": 22.5, "score": 2.14, "unit": "天"}
+      ]
+    },
+    {
+      "id": "ruanjian",
+      "name": "软件技术",
+      "totalScore": 25.51,
+      "scoreRate": 0.543,
+      "indicators": [
+        {"id": "X1", "name": "招生计划完成率", "weight": 5, "raw": 1.0658, "score": 5, "unit": "%"},
+        {"id": "X2", "name": "在校生满意度", "weight": 4, "raw": 0.926, "score": 3.88, "unit": ""},
+        {"id": "X3", "name": "毕业生满意度", "weight": 4, "raw": 0.9394, "score": 3.82, "unit": ""},
+        {"id": "X4", "name": "职业资格证书率", "weight": 4, "raw": 0.4066, "score": 1.22, "unit": ""},
+        {"id": "X5", "name": "就业去向落实率", "weight": 5, "raw": 0.9222, "score": 4.61, "unit": ""},
+        {"id": "X6", "name": "企业订单学生占比", "weight": 4, "raw": 0, "score": 0, "unit": ""},
+        {"id": "X7", "name": "双师型专任教师占比", "weight": 4, "raw": 0.8333, "score": 3.33, "unit": ""},
+        {"id": "X8", "name": "高级职称专任教师占比", "weight": 4, "raw": 0.1667, "score": 0.67, "unit": ""},
+        {"id": "X9", "name": "高技术技能人才占比", "weight": 4, "raw": 0, "score": 0, "unit": ""},
+        {"id": "X10", "name": "师均论文著作课题数", "weight": 5, "raw": 1.166667, "score": 2.92, "unit": ""},
+        {"id": "X11", "name": "教师人均企业实践时间", "weight": 4, "raw": 13.5, "score": 1.29, "unit": "天"}
+      ]
+    },
+    {
+      "id": "jisuanji",
+      "name": "计算机网络技术",
+      "totalScore": 22.32,
+      "scoreRate": 0.475,
+      "indicators": [
+        {"id": "X1", "name": "招生计划完成率", "weight": 5, "raw": 1.0339, "score": 5, "unit": "%"},
+        {"id": "X2", "name": "在校生满意度", "weight": 4, "raw": 0.863, "score": 3.61, "unit": ""},
+        {"id": "X3", "name": "毕业生满意度", "weight": 4, "raw": 0.9289, "score": 3.77, "unit": ""},
+        {"id": "X4", "name": "职业资格证书率", "weight": 4, "raw": 0.9825, "score": 2.95, "unit": ""},
+        {"id": "X5", "name": "就业去向落实率", "weight": 5, "raw": 0.9473, "score": 4.74, "unit": ""},
+        {"id": "X6", "name": "企业订单学生占比", "weight": 4, "raw": 0, "score": 0, "unit": ""},
+        {"id": "X7", "name": "双师型专任教师占比", "weight": 4, "raw": 0.5, "score": 2, "unit": ""},
+        {"id": "X8", "name": "高级职称专任教师占比", "weight": 4, "raw": 0.375, "score": 1.5, "unit": ""},
+        {"id": "X9", "name": "高技术技能人才占比", "weight": 4, "raw": 0, "score": 0, "unit": ""},
+        {"id": "X10", "name": "师均论文著作课题数", "weight": 5, "raw": 0.25, "score": 0.63, "unit": ""},
+        {"id": "X11", "name": "教师人均企业实践时间", "weight": 4, "raw": 11.25, "score": 1.07, "unit": "天"}
+      ]
+    }
+  ],
+  "summary": {
+    "avgEmployment": 96.0,
+    "avgRelevance": 69.3
+  },
+  "thresholds": {
+    "报到率": {"green": 95, "yellow": 85, "unit": "%"},
+    "生师比": {"green": 20, "yellow": 25, "inverse": true, "unit": ""},
+    "课程优良率": {"green": 85, "yellow": 70, "unit": "%"},
+    "技能证书通过率": {"green": 75, "yellow": 60, "unit": "%"},
+    "毕业率": {"green": 90, "yellow": 80, "unit": "%"},
+    "年终就业率": {"green": 90, "yellow": 80, "unit": "%"},
+    "专业相关度": {"green": 75, "yellow": 60, "unit": "%"}
+  }
+}

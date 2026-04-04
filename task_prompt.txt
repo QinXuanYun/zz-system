@@ -1,0 +1,106 @@
+Build a 专业发展智诊系统 (Professional Development Smart Diagnosis System) - a web application for monitoring and analyzing professional development metrics.
+
+## Project Structure
+Create the following files:
+- backend/main.py - FastAPI backend
+- backend/requirements.txt - Python dependencies
+- frontend/index.html - Main dashboard page
+- frontend/css/style.css - Styles
+- frontend/js/script.js - JavaScript for charts and API calls
+- data/indicators.json - Convert the Excel data to JSON format
+
+## Data Source (Excel Data - 2020学年专业建设与发展评价指标数据分数表)
+The data contains evaluation metrics for 5 majors in 信机系:
+
+Major: 飞行器制造技术
+- X1招生(5分): 原始0.6889,得分3.44
+- X2在校生满意度(4分): 原始0.945,得分3.96
+- X3毕业生满意度(4分): 原始0.8703,得分3.54
+- X4职业资格证书(4分): 原始0.5143,得分1.54
+- X5就业落实率(5分): 原始1,得分5
+- X6企业订单(4分): 原始0.3804,得分4
+- X7双师型教师(4分): 原始0.5,得分2
+- X8高级职称教师(4分): 原始0,得分0
+- X9高技术技能人才(4分): 原始0,得分0
+- X10师均论文著作课题(5分): 原始0.5,得分1.25
+- X11教师企业实践(4分): 原始24.5天,得分2.33
+- 总分: 25.52, 得分率: 54.3%
+
+Major: 机电一体化技术
+- X1: 0.875(4.38), X2: 0.891(3.73), X3: 0.9567(3.89), X4: 0.8333(2.50), X5: 1(5), X6: 0(0), X7: 0.5(2), X8: 0(0), X9: 0(0), X10: 0(0), X11: 22.5天(2.14)
+- 总分: 21.14, 得分率: 45.0%
+
+Major: 汽车运用与维修技术
+- X1: 1.0541(5), X2: 0.945(3.96), X3: 0.9061(3.68), X4: 0.8846(2.65), X5: 0.9231(4.62), X6: 0(0), X7: 0.75(3), X8: 0.25(1), X9: 0.25(4), X10: 0(0), X11: 22.5天(2.14)
+- 总分: 27.40, 得分率: 58.3%
+
+Major: 软件技术
+- X1: 1.0658(5), X2: 0.926(3.88), X3: 0.9394(3.82), X4: 0.4066(1.22), X5: 0.9222(4.61), X6: 0(0), X7: 0.8333(3.33), X8: 0.1667(0.67), X9: 0(0), X10: 1.166667(2.92), X11: 13.5天(1.29)
+- 总分: 25.51, 得分率: 54.3%
+
+Major: 计算机网络技术
+- X1: 1.0339(5), X2: 0.863(3.61), X3: 0.9289(3.77), X4: 0.9825(2.95), X5: 0.9473(4.74), X6: 0(0), X7: 0.5(2), X8: 0.375(1.5), X9: 0(0), X10: 0.25(0.63), X11: 11.25天(1.07)
+- 总分: 22.32, 得分率: 47.5%
+
+## System Features
+
+### 1. Dynamic Threshold Warning (动态阈值预警)
+- Warning colors: RED(预警), YELLOW(警告), BLUE(正常但有负向波动), GREEN(安全)
+- 7 indicators to monitor with thresholds:
+  - 报到率: Green >95%, Yellow 85-95%, Red <85%
+  - 生师比: Green <20, Yellow 20-25, Red >25
+  - 课程优良率: Green >85%, Yellow 70-85%, Red <70%
+  - 技能证书通过率: Green >75%, Yellow 60-75%, Red <60%
+  - 毕业率: Green >90%, Yellow 80-90%, Red <80%
+  - 年终就业率: Green >90%, Yellow 80-90%, Red <80%
+  - 专业相关度: Green >75%, Yellow 60-75%, Red <60%
+
+### 2. Dashboard (驾驶舱)
+- Show overall health status for each major with colored indicators
+- Show count of green/blue/yellow/red indicators per major
+- Click indicator to see details
+- Summary stats: 平均就业率96.0%, 平均专业相关度69.3%
+
+### 3. Data Visualization (数据可视化)
+- Radar chart comparing multiple majors
+- Bar chart for scores comparison
+- Line charts showing trends (if multi-year data available)
+- Tables showing detailed scores
+
+### 4. Trend Prediction & Anomaly Detection
+- Calculate averages and detect anomalies
+- Z-score for detecting significant changes
+
+### 5. Auto Report Generation (报告自动生成)
+- Generate text analysis for each major
+- Show strengths and weaknesses
+
+## Technical Requirements
+- Backend: Python FastAPI with these endpoints:
+  - GET / - Serve frontend HTML
+  - GET /api/majors - List all majors with scores
+  - GET /api/indicators/{major} - Get detailed indicators
+  - GET /api/warnings - Get warning status for all majors
+  - GET /api/radar - Data for radar chart comparison
+  - GET /api/report/{major} - Generate analysis report
+
+- Frontend: Single page HTML with:
+  - ECharts for visualizations
+  - Responsive dashboard layout
+  - Chinese language
+
+- Data: JSON file with all indicator data
+
+## Design
+- Professional dashboard with dark theme (深蓝色背景)
+- Card-based layout for each major
+- Color coding: Green(#52c41a), Blue(#1890ff), Yellow(#faad14), Red(#f5222d)
+- Clean, modern appearance
+
+## Files to Create
+1. backend/main.py - Full FastAPI application
+2. backend/requirements.txt - fastapi, uvicorn
+3. frontend/index.html - Complete dashboard with inline CSS and JS using ECharts CDN
+4. data/indicators.json - All the data above in JSON format
+
+Create ALL files with complete, working code. Make sure the application runs correctly.
