@@ -166,6 +166,9 @@
         /* Health score bar */
         .health-bar { height: 6px; background: #f0f0f0; border-radius: 3px; overflow: hidden; margin-top: 6px; }
         .health-bar-fill { height: 100%; border-radius: 3px; transition: width 0.6s ease; }
+
+        /* Color legend */
+        .color-legend { line-height: 1.8; }
     </style>
 </head>
 <body>
@@ -215,6 +218,12 @@
             <!-- Overview Section -->
             <div class="section active" id="sec-overview">
                 <div class="summary-row" id="summaryRow"></div>
+                <div class="color-legend" id="colorLegend" style="display:none;background:#f8f9fa;padding:12px 16px;border-radius:8px;margin-bottom:16px;font-size:13px;color:#666;">
+                    <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#1890ff;margin-right:4px;vertical-align:middle;"></span>蓝色：数值在正常范围内，但较上一年下降≥5%
+                    <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#52c41a;margin-left:16px;margin-right:4px;vertical-align:middle;"></span>绿色：数值在正常范围内
+                    <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#faad14;margin-left:16px;margin-right:4px;vertical-align:middle;"></span>黄色：数值趋于不正常范围
+                    <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#ff4d4f;margin-left:16px;margin-right:4px;vertical-align:middle;"></span>红色：数值不在正常范围内
+                </div>
                 
                 <!-- Ranking card -->
                 <div class="card"><div class="card-title">🏆 专业综合排行榜</div>
@@ -258,7 +267,7 @@
             
             <!-- Ranking Section -->
             <div class="section" id="sec-ranking">
-                <div class="card"><div class="card-title">🏆 综合排行榜</div>
+                <div class="card"><div class="card-title">🏆 综合排行榜得分</div>
                     <div class="ranking-list" id="rankingList"></div>
                 </div>
                 <div class="card"><div class="card-title">📊 各指标排行</div>
@@ -377,6 +386,9 @@ function switchYear(year) {
 
 // ==================== DASHBOARD ====================
 function renderDashboard(data) {
+    // Show color legend
+    document.getElementById('colorLegend').style.display = 'block';
+
     // Summary row
     const s = data.summary;
     document.getElementById('summaryRow').innerHTML = `
@@ -438,24 +450,26 @@ function renderDashboardRanking(ranking) {
 async function showMajorDetail(majorId) {
     try {
         const data = await api(`/api/major/${majorId}?year=${currentYear}`);
-        
+
         document.getElementById('detailTitle').textContent = `${data.majorName} - ${data.year}`;
         document.getElementById('majorsGrid').style.display = 'none';
         document.querySelector('.card').style.display = 'none';
         document.getElementById('detailPanel').style.display = 'block';
-        
+
         // Render indicators
         const container = document.getElementById('detailIndicators');
-        container.innerHTML = data.indicators.map(ind => `
+        container.innerHTML = data.indicators.map(ind => {
+            // formatVal already handles :1 suffix for ratio format
+            let displayValue = formatVal(ind.value, ind.format);
+            return `
             <div class="indicator-item">
                 <div class="indicator-dot ${ind.level}"></div>
                 <div class="indicator-info">
-                    <div class="indicator-name">${ind.name} ${ind.unit ? `(${ind.unit})` : ''}</div>
-                    <div class="indicator-value">${formatVal(ind.value, ind.format)}${ind.unit || ''}</div>
+                    <div class="indicator-name">${ind.name}</div>
+                    <div class="indicator-value">${displayValue}</div>
                 </div>
-                <div class="indicator-trend ${ind.trend}">${ind.trend === 'up' ? '↑' : ind.trend === 'down' ? '↓' : '→'}</div>
-            </div>
-        `).join('');
+            </div>`;
+        }).join('');
         
         // Render trend chart
         await renderTrendChart(majorId, data.year);
@@ -522,15 +536,18 @@ async function initWarnings() {
         
         // Table
         const tbody = document.querySelector('#warningTable tbody');
-        tbody.innerHTML = data.warnings.map(w => `
+        tbody.innerHTML = data.warnings.map(w => {
+            // formatVal already handles :1 suffix for ratio format
+            let displayValue = formatVal(w.value, w.format);
+            return `
             <tr>
                 <td>${w.majorName}</td>
                 <td>${w.indicatorName}</td>
-                <td>${formatVal(w.value, w.format)}${w.unit || ''}</td>
+                <td>${displayValue}</td>
                 <td><span class="level-tag ${w.level}">${w.level === 'red' ? '🔴 红色' : w.level === 'yellow' ? '🟡 黄色' : '🔵 蓝色'}</span></td>
-                <td>${w.change !== null ? (w.change > 0 ? `↑${w.change}%` : `↓${Math.abs(w.change)}%`) : '-'}</td>
-            </tr>
-        `).join('');
+                <td>${w.change !== null ? (w.change > 0 ? `↑${Math.abs(w.change)}%` : `↓${Math.abs(w.change)}%`) : '-'}</td>
+            </tr>`;
+        }).join('');
         
         // Chart
         const counts = {red: 0, yellow: 0, blue: 0};
@@ -629,7 +646,7 @@ async function initIndicatorTabs() {
     
     const tabs = document.getElementById('indicatorTabs');
     const indIds = Object.keys(indicatorData);
-    tabs.innerHTML = indIds.slice(0, 7).map((id, i) => 
+    tabs.innerHTML = indIds.map((id, i) =>
         `<button class="tab-btn ${i === 0 ? 'active' : ''}" onclick="switchIndicator('${id}', this)">${indicatorData[id].name}</button>`
     ).join('');
     
@@ -646,23 +663,28 @@ function switchIndicator(indId, btn) {
 
 async function renderIndicatorBar(indId) {
     if (!indicatorData) return;
-    
+
     const data = indicatorData[indId];
     if (!indicatorBarChartInst) {
         indicatorBarChartInst = echarts.init(document.getElementById('indicatorBar'));
     }
-    
-    const maxVal = Math.max(...data.items.map(i => i.value * 100), 1);
+
+    // API returns normalized values (0-100 for pct, actual value for ratio)
+    const isRatio = data.format === 'ratio';
+    const maxVal = Math.max(...data.items.map(i => i.value), 1);
     const colors = {red: '#ff4d4f', yellow: '#faad14', blue: '#1890ff', green: '#52c41a'};
-    
+
+    // Calculate average for reference line
+    const avg = data.items.reduce((sum, i) => sum + i.value, 0) / data.items.length;
+
     indicatorBarChartInst.setOption({
         tooltip: {trigger: 'axis'},
-        xAxis: {type: 'value', max: maxVal > 100 ? maxVal : 100},
+        xAxis: {type: 'value', max: isRatio ? undefined : 100},
         yAxis: {type: 'category', data: data.items.map(i => i.majorName), inverse: true},
         series: [{
             type: 'bar',
             data: data.items.map(i => ({
-                value: (i.value * 100).toFixed(1),
+                value: i.value.toFixed(1),
                 itemStyle: {color: colors[i.level]}
             }))
         }],
@@ -684,7 +706,7 @@ async function initRanking() {
     
     const tabs = document.getElementById('rankingTabs');
     const indIds = Object.keys(rankingByIndicatorData);
-    tabs.innerHTML = indIds.slice(0, 7).map((id, i) => 
+    tabs.innerHTML = indIds.map((id, i) =>
         `<button class="tab-btn ${i === 0 ? 'active' : ''}" onclick="switchRankingIndicator('${id}', this)">${rankingByIndicatorData[id].name}</button>`
     ).join('');
     
@@ -693,18 +715,18 @@ async function initRanking() {
     }
 }
 
-function renderRankingList(containerId, rankings, isPercent) {
+function renderRankingList(containerId, rankings, isRatio) {
     const container = document.getElementById(containerId);
     const maxVal = Math.max(...rankings.map(r => r.value), 1);
     const colors = ['#ff6b6b','#ffa502','#1890ff','#bbb','#bbb'];
-    
+
     container.innerHTML = rankings.map((r, i) => `
         <div class="ranking-item">
             <div class="ranking-num r${i+1}">${i+1}</div>
             <div class="ranking-name">${r.name}</div>
             <div class="ranking-bar">
                 <div class="ranking-bar-fill" style="width:${(r.value/maxVal*100).toFixed(0)}%;background:${colors[i]||'#bbb'}">
-                    ${r.value.toFixed(1)}${isPercent ? '%' : ''}
+                    ${r.value.toFixed(1)}
                 </div>
             </div>
         </div>
@@ -720,8 +742,10 @@ function switchRankingIndicator(indId, btn) {
 function renderRankingByIndicator(indId) {
     if (!rankingByIndicatorData) return;
     const data = rankingByIndicatorData[indId];
-    const items = data.items.map(it => ({...it, value: it.value * 100, name: it.majorName}));
-    renderRankingList('rankingByIndicator', items, true);
+    // API returns normalized values, don't multiply by 100 again
+    const items = data.items.map(it => ({...it, value: it.value, name: it.majorName}));
+    const isRatio = data.format === 'ratio';
+    renderRankingList('rankingByIndicator', items, isRatio);
 }
 
 // ==================== REPORT ====================
@@ -774,19 +798,23 @@ async function generateReport(majorId, majorName, btn) {
 async function renderReportRadar(data) {
     const chart = echarts.init(document.getElementById('reportRadar'));
     reportRadarChart = chart;
-    
-    const indicators = ['X1','X2','X3','X4','X5','X6','X7'];
-    const names = ['招生计划完成率','生师比','课程优良率','技能证书通过率','年终就业率','年终就业去向落实率','专业相关度'];
-    
+
+    const indicators = ['X1','X2','X3','X4','X5','X6','X7','X8','X9','X10'];
+    const names = ['招生计划完成率','生师比','课程优良率','技能证书通过率','毕业率','就业去向落实率','专业相关度','在校生满意度','毕业生满意度','企业订单学生占比'];
+
     // Normalize values
     const scores = indicators.map((id, i) => {
-        const item = [...(data.red||[]),...(data.yellow||[]),...(data.blue||[]),...(data.green||[])].find(i => i.id === id);
+        const item = [...(data.red||[]),...(data.yellow||[]),...(data.blue||[]),...(data.green||[])].find(it => it.id === id);
         if (!item) return 0;
         const val = item.value;
         if (i === 1) return Math.max(0, Math.min(100, (22-val)/(22-18)*100)); // 生师比
         return val * 100;
     });
-    
+
+    // Calculate average (excluding X2 ratio)
+    const pctScores = scores.map((s, i) => i === 1 ? null : s).filter(s => s !== null);
+    const avgScore = pctScores.reduce((a, b) => a + b, 0) / pctScores.length;
+
     chart.setOption({
         radar: {
             indicator: names.map(n => ({name: n, max: 100})),
@@ -794,7 +822,10 @@ async function renderReportRadar(data) {
         },
         series: [{
             type: 'radar',
-            data: [{value: scores, name: data.majorName, areaStyle: {opacity: 0.2}, itemStyle: {color: '#1890ff'}}]
+            data: [
+                {value: scores, name: data.majorName, areaStyle: {opacity: 0.2}, itemStyle: {color: '#1890ff'}},
+                {value: scores.map(() => avgScore), name: '平均值', areaStyle: {opacity: 0.1}, lineStyle: {color: '#999'}, itemStyle: {color: '#999'}}
+            ]
         }]
     });
 }
@@ -802,22 +833,38 @@ async function renderReportRadar(data) {
 async function renderReportBar(data) {
     const chart = echarts.init(document.getElementById('reportBar'));
     reportBarChart = chart;
-    
-    const allItems = [...(data.red||[]),...(data.yellow||[]),...(data.blue||[]),...(data.green||[])].slice(0, 7);
+
+    const allItems = [...(data.red||[]),...(data.yellow||[]),...(data.blue||[]),...(data.green||[])];
     const colors = {red: '#ff4d4f', yellow: '#faad14', blue: '#1890ff', green: '#52c41a'};
-    
+
+    // Normalize values and calculate average
+    const values = allItems.map(i => i.value * 100);
+    const avg = values.reduce((a, b) => a + b, 0) / values.length;
+
     chart.setOption({
         tooltip: {trigger: 'axis'},
         xAxis: {type: 'category', data: allItems.map(i => i.name), axisLabel: {rotate: 15, interval: 0}},
         yAxis: {type: 'value', max: 100},
-        series: [{
-            type: 'bar',
-            data: allItems.map(i => ({
-                value: (i.value * 100).toFixed(1),
-                itemStyle: {color: colors[i.level]}
-            }))
-        }],
-        grid: {top: 10, bottom: 50, left: 60, right: 20}
+        series: [
+            {
+                type: 'bar',
+                data: allItems.map(i => ({
+                    value: (i.value * 100).toFixed(1),
+                    itemStyle: {color: colors[i.level]}
+                }))
+            },
+            {
+                type: 'line',
+                markLine: {
+                    silent: true,
+                    lineStyle: {color: '#ff4d4f', type: 'dashed'},
+                    data: [{yAxis: avg}],
+                    label: {formatter: '平均值: ' + avg.toFixed(1), position: 'end'}
+                },
+                data: []
+            }
+        ],
+        grid: {top: 30, bottom: 50, left: 60, right: 20}
     });
 }
 
@@ -841,6 +888,8 @@ function showSection(name) {
         if (compareChartInst) compareChartInst.resize();
         if (warningChart) warningChart.resize();
         if (indicatorBarChartInst) indicatorBarChartInst.resize();
+        if (reportRadarChart) reportRadarChart.resize();
+        if (reportBarChart) reportBarChart.resize();
     }, 100);
 }
 
@@ -848,8 +897,8 @@ function showSection(name) {
 function formatVal(val, fmt) {
     if (val === null || val === undefined) return 'N/A';
     if (fmt === 'pct') return (val * 100).toFixed(1) + '%';
-    if (fmt === 'ratio') return val.toFixed(1) + ':1';
-    if (fmt === 'days') return val.toFixed(0);
+    if (fmt === 'ratio') return val.toFixed(1);
+    if (fmt === 'days') return val.toFixed(0) + '天';
     return val.toFixed(2);
 }
 

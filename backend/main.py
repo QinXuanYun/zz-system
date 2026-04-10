@@ -92,15 +92,16 @@ def get_level(val: float, thresholds: dict, ind_id: str) -> str:
 
 
 def build_indicator_meta() -> dict:
-    """Build indicator metadata from xlsx Sheet1."""
-    xlsx_path = Path(__file__).parent.parent / ".." / ".." / ".." / "workspace" / "huiyi_pro" / "xingjian" / "academic-report" / "docs" / "需求文档" / "指标、阈值及数据0408.xlsx"
-    
-    # Fallback to embedded data if xlsx not found
+    """Build indicator metadata - 10 core indicators per user requirements.
+
+    Data from Excel stores percentage values as decimals (e.g., 1.0919 = 109.19%).
+    Thresholds are stored in decimal format to match data (e.g., 0.85 = 85%).
+    """
     return {
         "X1": {
             "name": "招生计划完成率", "weight": 5, "unit": "%",
             "method": "(实际录取数/招生计划数)*100%",
-            "thresholds": {"red": (0, 0.85), "yellow": (0.85, 0.90), "green": (0.90, 999)},
+            "thresholds": {"red": 0.85, "yellow": 0.90, "green": 1.00},
             "higher_is_better": True, "format": "pct"
         },
         "X2": {
@@ -112,157 +113,136 @@ def build_indicator_meta() -> dict:
         "X3": {
             "name": "课程优良率", "weight": 3, "unit": "%",
             "method": "学生评教分数/专业课程门数",
-            "thresholds": {"red": (0, 0.70), "yellow": (0.70, 0.85), "green": (0.85, 999)},
+            "thresholds": {"red": 0.70, "yellow": 0.85, "green": 1.00},
             "higher_is_better": True, "format": "pct"
         },
         "X4": {
             "name": "技能证书通过率", "weight": 4, "unit": "%",
             "method": "获得职业资格证书学生数/学年生均学生数",
-            "thresholds": {"red": (0, 0.60), "yellow": (0.60, 0.75), "green": (0.75, 999)},
+            "thresholds": {"red": 0.60, "yellow": 0.75, "green": 1.00},
             "higher_is_better": True, "format": "pct"
         },
         "X5": {
-            "name": "年终就业率", "weight": 3, "unit": "%",
-            "method": "年终就业学生数/实际就业学生数",
-            "thresholds": {"red": (0, 0.95), "yellow": (0.95, 0.97), "green": (0.97, 999)},
+            "name": "毕业率", "weight": 3, "unit": "%",
+            "method": "实际毕业学生数/毕业生总数",
+            "thresholds": {"red": 0.90, "yellow": 0.95, "green": 1.00},
             "higher_is_better": True, "format": "pct"
         },
         "X6": {
-            "name": "年终就业去向落实率", "weight": 5, "unit": "%",
+            "name": "就业去向落实率", "weight": 5, "unit": "%",
             "method": "落实去向学生数/毕业生总数",
-            "thresholds": {"red": (0, 0.92), "yellow": (0.92, 0.96), "green": (0.96, 999)},
+            "thresholds": {"red": 0.92, "yellow": 0.96, "green": 1.00},
             "higher_is_better": True, "format": "pct"
         },
         "X7": {
             "name": "专业相关度", "weight": 4, "unit": "%",
             "method": "专业对口岗位学生数/总岗位学生数",
-            "thresholds": {"red": (0, 0.68), "yellow": (0.68, 0.70), "green": (0.70, 999)},
+            "thresholds": {"red": 0.68, "yellow": 0.70, "green": 1.00},
             "higher_is_better": True, "format": "pct"
         },
         "X8": {
-            "name": "校内实训基地满意度", "weight": 4, "unit": "",
-            "method": "非常满意人数/总问卷人数",
-            "thresholds": {"red": (0, 0.91), "yellow": (0.91, 0.95), "green": (0.95, 999)},
+            "name": "在校生满意度", "weight": 4, "unit": "%",
+            "method": "满意人数/总问卷人数",
+            "thresholds": {"red": 0.91, "yellow": 0.91, "green": 0.95},
             "higher_is_better": True, "format": "pct"
         },
         "X9": {
-            "name": "就业单位满意度", "weight": 4, "unit": "",
+            "name": "毕业生满意度", "weight": 4, "unit": "%",
             "method": "满意人数/总问卷人数",
-            "thresholds": {"red": (0, 0.92), "yellow": (0.92, 0.95), "green": (0.95, 999)},
+            "thresholds": {"red": 0.92, "yellow": 0.92, "green": 0.95},
             "higher_is_better": True, "format": "pct"
         },
         "X10": {
-            "name": "企业订单学生占比", "weight": 4, "unit": "",
+            "name": "企业订单学生占比", "weight": 4, "unit": "%",
             "method": "企业订单培养学生数/年度招生总数",
-            "thresholds": {"red": (0, 0.08), "yellow": (0.08, 0.15), "green": (0.15, 999)},
+            "thresholds": {"red": 0.08, "yellow": 0.15, "green": 1.00},
             "higher_is_better": True, "format": "pct"
-        },
-        "X11": {
-            "name": "双师型专任教师占比", "weight": 4, "unit": "",
-            "method": "双师型专任教师数/专任教师总数",
-            "thresholds": {"red": (0, 0.60), "yellow": (0.60, 0.75), "green": (0.75, 999)},
-            "higher_is_better": True, "format": "pct"
-        },
-        "X12": {
-            "name": "高级职称专任教师占比", "weight": 4, "unit": "",
-            "method": "高级职称专任教师数/专任教师总数",
-            "thresholds": {"red": (0, 0.15), "yellow": (0.15, 0.25), "green": (0.25, 999)},
-            "higher_is_better": True, "format": "pct"
-        },
-        "X13": {
-            "name": "高技术技能人才占比", "weight": 4, "unit": "",
-            "method": "高技能人才数/专任教师总数",
-            "thresholds": {"red": (0, 0.05), "yellow": (0.05, 0.10), "green": (0.10, 999)},
-            "higher_is_better": True, "format": "pct"
-        },
-        "X14": {
-            "name": "师均论文著作课题数", "weight": 5, "unit": "",
-            "method": "论文著作课题总数/专任教师数",
-            "thresholds": {"red": (0, 0.5), "yellow": (0.5, 1.0), "green": (1.0, 999)},
-            "higher_is_better": True, "format": "num"
-        },
-        "X15": {
-            "name": "教师人均企业实践时间", "weight": 4, "unit": "天",
-            "method": "专任教师企业实践时间/专任教师数",
-            "thresholds": {"red": (0, 18), "yellow": (18, 30), "green": (30, 999)},
-            "higher_is_better": True, "format": "days"
         }
     }
 
 
 def load_data_from_xlsx() -> dict:
-    """Load and parse data from the xlsx file."""
-    xlsx_path = Path(r"D:\workspace\huiyi_pro\xingjian\academic-report\docs\需求文档\指标、阈值及数据0408.xlsx")
-    
+    """Load and parse data from the xlsx file.
+
+    Data format from Excel:
+    - X1 (招生计划完成率): stored as decimal like 0.6889, should display as 68.89%
+    - X2 (生师比): stored as ratio like 16.5, should display as 16.5:1
+    - X3-X10: stored as decimals like 0.88, should display as 88%
+    """
+    xlsx_path = Path(r"D:\workspace\huiyi_pro\xingjian\指标、阈值及数据0408.xlsx")
+
     if not xlsx_path.exists():
         return load_fallback_data()
-    
+
     wb = load_workbook(xlsx_path, data_only=True)
     sheet_names = list(wb.sheetnames)
-    
-    # Hardcoded major names (5 majors after Sheet1 which is the threshold sheet)
+
+    # Major names mapping (Sheet1 is threshold sheet, sheets 2-6 are major data)
+    # Excel Sheet 4 = 软件技术 (X8=92.6%), Sheet 5 = 计算机网络技术 (X8=86.3%)
     major_names = [
         "航空装备制造类",
-        "机电一体化类",
+        "机电一体化技术",
         "汽车检测与维修技术",
-        "计算机网络技术",
-        "软件技术"
+        "软件技术",
+        "计算机网络技术"
     ]
-    
+
     indicators_meta = build_indicator_meta()
-    years = ["2022-2023学年", "2023-2024学年", "2024-2025学年"]
-    
+    # Map Excel column index to indicator ID (X1-X10 only)
+    excel_row_to_ind = {
+        1: "X1", 2: "X2", 3: "X3", 4: "X4", 5: "X5",
+        6: "X6", 7: "X7", 8: "X8", 9: "X9", 10: "X10"
+    }
+
+    years = ["2023-2024学年", "2024-2025学年", "2025-2026学年"]
+
     majors_data = {}
-    
+
     # Read each major's data from sheets 1-5 (skip Sheet1 which is thresholds)
     for idx in range(1, min(6, len(sheet_names))):
         ws = wb[sheet_names[idx]]
         rows = list(ws.iter_rows(values_only=True))
-        
+
         major_id = f"major_{idx-1}"
         major_name = major_names[idx-1] if idx-1 < len(major_names) else f"专业{idx-1}"
-        
+
         for i, year in enumerate(years):
             if year not in majors_data:
                 majors_data[year] = {}
-            
+
             # Use actual values from xlsx
             year_data = {}
-            total = 0
-            
-            for row_idx in range(1, 15):  # rows 1-14 contain indicator data
-                if row_idx >= len(rows):
-                    break
+
+            # Read rows 1-10 (indices 1-10 in Excel, 0-based in iter_rows)
+            for row_idx in range(1, min(11, len(rows))):
                 row = rows[row_idx]
                 if row and len(row) >= 5 and row[0] is not None:
                     try:
-                        ind_num = int(row[0])  # Column A = indicator number (1-15)
+                        ind_num = int(row[0])  # Column A = indicator number (1-10)
+                        if ind_num > 10:
+                            continue  # Skip indicators beyond X10
+
                         ind_id = f"X{ind_num}"
                         raw_val = row[3] if row[3] is not None else 0  # Column D = raw value
-                        score_val = row[4] if row[4] is not None else 0  # Column E = score
-                        
-                        # Apply slight year variation for trend demo
-                        if i > 0 and ind_id != "X2":  # Don't scale ratios
-                            if raw_val and raw_val > 0:
-                                variation = (hash(f"{ind_id}{i}") % 100 - 50) / 2000.0
-                                raw_val = raw_val * (1 + variation)
-                        
+
+                        # No variation - use actual values from Excel
+                        # If actual data has only one year, trend comparison won't apply
+
                         year_data[ind_id] = raw_val
-                        total += (score_val or 0)
-                    except:
+                    except Exception:
                         pass
-            
+
             majors_data[year][major_id] = year_data
-    
+
     # Build metadata
     meta_majors = [
         {"id": "major_0", "name": "航空装备制造类", "fullName": "航空装备制造类"},
-        {"id": "major_1", "name": "机电一体化类", "fullName": "机电一体化类"},
+        {"id": "major_1", "name": "机电一体化技术", "fullName": "机电一体化技术"},
         {"id": "major_2", "name": "汽车检测与维修技术", "fullName": "汽车检测与维修技术"},
-        {"id": "major_3", "name": "计算机网络技术", "fullName": "计算机网络技术(含中高职贯通)"},
-        {"id": "major_4", "name": "软件技术", "fullName": "软件技术"}
+        {"id": "major_3", "name": "软件技术", "fullName": "软件技术"},
+        {"id": "major_4", "name": "计算机网络技术", "fullName": "计算机网络技术(含中高职贯通)"}
     ]
-    
+
     return {
         "meta": {
             "school": "信息与机电工程系",
@@ -275,20 +255,24 @@ def load_data_from_xlsx() -> dict:
 
 
 def load_fallback_data() -> dict:
-    """Fallback data when xlsx is not available."""
+    """Fallback data when xlsx is not available - 10 indicators per user requirements."""
     indicators_meta = build_indicator_meta()
-    years = ["2022-2023学年", "2023-2024学年", "2024-2025学年"]
-    
+    years = ["2023-2024学年", "2024-2025学年", "2025-2026学年"]
+
+    # Data values match Excel format: percentages as decimals (0.88), X2 as ratio (16.5)
     majors_data = {}
     for year in years:
         majors_data[year] = {
-            "major_0": {"X1": 0.92, "X2": 17.5, "X3": 0.85, "X4": 0.88, "X5": 0.96, "X6": 0.98, "X7": 0.72, "X8": 0.95, "X9": 0.93, "X10": 0.12, "X11": 0.68, "X12": 0.22, "X13": 0.08, "X14": 0.75, "X15": 25},
-            "major_1": {"X1": 0.88, "X2": 19.2, "X3": 0.78, "X4": 0.72, "X5": 0.94, "X6": 0.95, "X7": 0.69, "X8": 0.92, "X9": 0.90, "X10": 0.05, "X11": 0.55, "X12": 0.18, "X13": 0.06, "X14": 0.45, "X15": 20},
-            "major_2": {"X1": 0.95, "X2": 16.8, "X3": 0.82, "X4": 0.91, "X5": 0.97, "X6": 0.99, "X7": 0.75, "X8": 0.96, "X9": 0.94, "X10": 0.18, "X11": 0.72, "X12": 0.28, "X13": 0.12, "X14": 0.92, "X15": 32},
-            "major_3": {"X1": 0.90, "X2": 18.5, "X3": 0.80, "X4": 0.85, "X5": 0.95, "X6": 0.97, "X7": 0.71, "X8": 0.94, "X9": 0.92, "X10": 0.08, "X11": 0.62, "X12": 0.20, "X13": 0.07, "X14": 0.55, "X15": 22},
-            "major_4": {"X1": 0.87, "X2": 20.1, "X3": 0.75, "X4": 0.68, "X5": 0.93, "X6": 0.94, "X7": 0.65, "X8": 0.91, "X9": 0.89, "X10": 0.03, "X11": 0.50, "X12": 0.15, "X13": 0.04, "X14": 0.38, "X15": 16},
+            # X1=招生计划完成率(dec), X2=生师比(ratio), X3=课程优良率(dec), X4=技能证书通过率(dec)
+            # X5=毕业率(dec), X6=就业去向落实率(dec), X7=专业相关度(dec), X8=在校生满意度(dec)
+            # X9=毕业生满意度(dec), X10=企业订单学生占比(dec)
+            "major_0": {"X1": 0.6889, "X2": 18.0, "X3": 0.88, "X4": 0.5143, "X5": 0.96, "X6": 1.0, "X7": 0.71, "X8": 0.945, "X9": 0.8703, "X10": 0.3804},
+            "major_1": {"X1": 0.875, "X2": 16.8, "X3": 0.79, "X4": 0.8333, "X5": 0.93, "X6": 1.0, "X7": 0.58, "X8": 0.891, "X9": 0.9567, "X10": 0.0},
+            "major_2": {"X1": 1.0541, "X2": 17.0, "X3": 0.80, "X4": 0.8846, "X5": 0.91, "X6": 0.9231, "X7": 0.62, "X8": 0.945, "X9": 0.9061, "X10": 0.0},
+            "major_3": {"X1": 1.0658, "X2": 16.5, "X3": 0.82, "X4": 0.4066, "X5": 0.90, "X6": 0.9222, "X7": 0.67, "X8": 0.926, "X9": 0.9394, "X10": 0.0},
+            "major_4": {"X1": 1.0339, "X2": 16.0, "X3": 0.75, "X4": 0.9825, "X5": 0.89, "X6": 0.9473, "X7": 0.70, "X8": 0.863, "X9": 0.9289, "X10": 0.0},
         }
-    
+
     return {
         "meta": {
             "school": "信息与机电工程系",
@@ -296,10 +280,10 @@ def load_fallback_data() -> dict:
             "indicators": [dict(id=k, **v) for k, v in indicators_meta.items()],
             "majors": [
                 {"id": "major_0", "name": "航空装备制造类", "fullName": "航空装备制造类"},
-                {"id": "major_1", "name": "机电一体化类", "fullName": "机电一体化类"},
+                {"id": "major_1", "name": "机电一体化技术", "fullName": "机电一体化技术"},
                 {"id": "major_2", "name": "汽车检测与维修技术", "fullName": "汽车检测与维修技术"},
-                {"id": "major_3", "name": "计算机网络技术", "fullName": "计算机网络技术(含中高职贯通)"},
-                {"id": "major_4", "name": "软件技术", "fullName": "软件技术"}
+                {"id": "major_3", "name": "软件技术", "fullName": "软件技术"},
+                {"id": "major_4", "name": "计算机网络技术", "fullName": "计算机网络技术(含中高职贯通)"}
             ]
         },
         "data": majors_data
@@ -388,15 +372,22 @@ async def me(token: str = None):
 # ============================================================
 def get_level_value(val: float, ind_id: str, ind_dict: dict) -> str:
     """Get warning level for an indicator value.
-    
-    ind_dict: {ind_id: {thresholds: {...}}} or just {ind_id: {...}} if called with full lookup.
-    Actually it receives: ind_lookup = {ind['id']: ind for ind in meta['indicators']}
-    So it's keyed by id.
+
+    Thresholds are now simple numbers representing percentage values (0-100 scale).
+    For 生师比 (X2): lower is better, uses green/yellow/red thresholds directly.
+    For other indicators: higher is better, uses red/yellow/green thresholds.
+    Blue is determined separately by trend comparison, not by threshold.
     """
-    ind_meta = ind_dict.get(ind_id, {})
+    # ind_dict can be either a single indicator object or a dict of {ind_id: indicator}
+    if "id" in ind_dict:
+        # Single indicator object passed directly
+        ind_meta = ind_dict
+    else:
+        # Dict of indicators passed, look up by ind_id
+        ind_meta = ind_dict.get(ind_id, {})
     thresholds = ind_meta.get("thresholds", {})
-    
-    if ind_id == "X2":  # 生师比 - lower is better (ratio: <=18 green, <=22 yellow, >22 red)
+
+    if ind_id == "X2":  # 生师比 - lower is better
         green_thresh = thresholds.get("green", 18)
         yellow_thresh = thresholds.get("yellow", 22)
         if val <= green_thresh:
@@ -405,35 +396,19 @@ def get_level_value(val: float, ind_id: str, ind_dict: dict) -> str:
             return "yellow"
         else:
             return "red"
-    
-    # For indicators with tuple thresholds (min, max)
-    green_thresh = thresholds.get("green", 999)
+
+    # For indicators where higher is better:
+    # green = at/above green threshold
+    # yellow = below green but at/above yellow threshold
+    # red = below yellow threshold
+    red_thresh = thresholds.get("red", 0)
     yellow_thresh = thresholds.get("yellow", 0)
-    blue_thresh = thresholds.get("blue", 0)
-    
-    # Handle tuple ranges: green could be (0.90, 999)
-    if isinstance(green_thresh, tuple):
-        green_val = green_thresh[0]  # min value for green
-        green_max = green_thresh[1]
-    else:
-        green_val = green_thresh
-    
-    if isinstance(yellow_thresh, tuple):
-        yellow_val = yellow_thresh[0]
-    else:
-        yellow_val = yellow_thresh
-    
-    if isinstance(blue_thresh, tuple):
-        blue_val = blue_thresh[0]
-    else:
-        blue_val = blue_thresh
-    
-    if val >= green_val:
+    green_thresh = thresholds.get("green", 100)
+
+    if val >= green_thresh:
         return "green"
-    elif val >= yellow_val:
+    elif val >= yellow_thresh:
         return "yellow"
-    elif val >= blue_val:
-        return "blue"
     else:
         return "red"
 
@@ -443,7 +418,7 @@ def format_value(val: float, ind_id: str, fmt: str) -> str:
     if fmt == "pct":
         return f"{val*100:.1f}%" if val is not None else "N/A"
     elif fmt == "ratio":
-        return f"{val:.1f}:1" if val is not None else "N/A"
+        return f"{val:.1f}" if val is not None else "N/A"
     elif fmt == "days":
         return f"{val:.0f}天" if val is not None else "N/A"
     elif fmt == "num":
@@ -498,10 +473,10 @@ async def get_dashboard(year: str = None):
             val = mdata.get(ind_id, 0)
             level = get_level_value(val, ind_id, ind_lookup)
             
-            # Blue: normal but negative trend
-            if level == "green" and prev_data:
+            # Blue: normal but negative trend (only if previous year data exists)
+            if level == "green" and prev_year and ind_id in prev_data:
                 prev_val = prev_data.get(ind_id, 0)
-                if val < prev_val:
+                if prev_val > 0 and val < prev_val:
                     level = "blue"
             
             counts[level] += 1
@@ -677,12 +652,12 @@ async def get_warnings(year: str = None):
             ind_id = ind["id"]
             val = mdata.get(ind_id, 0)
             level = get_level_value(val, ind_id, ind_dict)
-            
-            if level == "green" and prev_data:
+
+            if level == "green" and prev_year and ind_id in prev_data:
                 prev_val = prev_data.get(ind_id, 0)
-                if val < prev_val:
+                if prev_val > 0 and val < prev_val:
                     level = "blue"
-            
+
             if level in ("red", "yellow", "blue"):
                 change = None
                 if prev_data and ind_id in prev_data:
@@ -708,36 +683,36 @@ async def get_warnings(year: str = None):
 
 @app.get("/api/compare")
 async def get_compare(majors: str = None, year: str = None):
-    """Get radar chart comparison data."""
+    """Get radar chart comparison data - uses all 10 indicators."""
     db = get_db()
     meta = db["meta"]
     years = meta["years"]
     target_year = year or years[-1]
-    
+
     if majors:
         major_ids = majors.split(",")
     else:
         major_ids = [m["id"] for m in meta["majors"]]
-    
+
     year_data = db["data"].get(target_year, {})
     ind_dict = {ind["id"]: ind for ind in meta["indicators"]}
-    
-    # Use 7 core indicators for radar
-    core_ids = ["X1", "X2", "X3", "X4", "X5", "X6", "X7"]
-    
+
+    # Use all 10 indicators for radar
+    core_ids = ["X1", "X2", "X3", "X4", "X5", "X6", "X7", "X8", "X9", "X10"]
+
     compare_data = []
     for mid in major_ids:
         mdata = year_data.get(mid, {})
         major_meta = next((m for m in meta["majors"] if m["id"] == mid), None)
         name = major_meta["name"] if major_meta else mid
-        
+
         # Normalize values to 0-100 scale
         scores = []
         for ind_id in core_ids:
             val = mdata.get(ind_id, 0)
             ind = ind_dict.get(ind_id, {})
             fmt = ind.get("format", "num")
-            
+
             if fmt == "pct":
                 score = val * 100
             elif fmt == "ratio":
@@ -747,18 +722,18 @@ async def get_compare(majors: str = None, year: str = None):
                 score = min(val / 30 * 100, 100)
             else:
                 score = val * 100
-            
+
             scores.append(round(score, 1))
-        
+
         compare_data.append({
             "id": mid,
             "name": name,
             "scores": scores
         })
-    
+
     # Indicator labels
     labels = [ind_dict[i]["name"] for i in core_ids]
-    
+
     return {
         "year": target_year,
         "indicators": [{"id": i, "name": n} for i, n in zip(core_ids, labels)],
@@ -768,29 +743,42 @@ async def get_compare(majors: str = None, year: str = None):
 
 @app.get("/api/ranking")
 async def get_ranking(year: str = None, indicator: str = None):
-    """Get ranking data."""
+    """Get ranking data.
+
+    Values are normalized:
+    - pct format: returns 0-100 scale percentage
+    - ratio format: returns actual ratio value (e.g., 16.5)
+    """
     db = get_db()
     meta = db["meta"]
     years = meta["years"]
     target_year = year or years[-1]
-    
+
     year_data = db["data"].get(target_year, {})
-    
+
+    def normalize_value(val, ind_format):
+        """Normalize value for display."""
+        if ind_format == "pct":
+            return val * 100
+        elif ind_format == "ratio":
+            return val  # Keep ratio as-is for display
+        elif ind_format == "days":
+            return val
+        else:
+            return val * 100
+
     rankings = []
     for m in meta["majors"]:
         mid = m["id"]
         mdata = year_data.get(mid, {})
-        
+
         if indicator:
             val = mdata.get(indicator, 0)
             # Normalize for comparison
             ind_meta = next((i for i in meta["indicators"] if i["id"] == indicator), None)
             if ind_meta:
-                fmt = ind_meta.get("format", "num")
-                if fmt == "pct":
-                    val = val * 100
-                elif fmt == "ratio":
-                    val = max(0, min(100, (22 - val) / (22 - 18) * 100))
+                ind_format = ind_meta.get("format", "pct")
+                val = normalize_value(val, ind_format)
         else:
             # Overall health score
             counts = {"red": 0, "yellow": 0, "blue": 0, "green": 0}
@@ -808,17 +796,23 @@ async def get_ranking(year: str = None, indicator: str = None):
                     counts["red"] += 1
             total_indicators = len(meta["indicators"])
             val = (counts["green"] * 100 + counts["blue"] * 80 + counts["yellow"] * 50 + counts["red"] * 0) / max(total_indicators, 1)
-        
+
         rankings.append({
             "id": mid,
             "name": m["name"],
             "value": round(val, 2)
         })
-    
-    rankings.sort(key=lambda x: x["value"], reverse=True)
+
+    # Sort: for ratio indicators like 生师比 (higher_is_better=False), lower is better
+    if indicator:
+        ind_meta = next((i for i in meta["indicators"] if i["id"] == indicator), None)
+        higher_is_better = ind_meta.get("higher_is_better", True) if ind_meta else True
+    else:
+        higher_is_better = True  # Overall score: higher is better
+    rankings.sort(key=lambda x: x["value"], reverse=higher_is_better)
     for i, r in enumerate(rankings):
         r["rank"] = i + 1
-    
+
     return {
         "year": target_year,
         "indicator": indicator,
@@ -1017,35 +1011,57 @@ async def generate_report(major_id: str, year: str = None):
 
 @app.get("/api/indicator/bar")
 async def get_indicator_bar(indicator_id: str = None, year: str = None):
-    """Get bar chart data for a specific indicator across majors."""
+    """Get bar chart data for a specific indicator across majors.
+
+    Values are normalized to 0-100 scale:
+    - pct format: raw decimal (0.6889) * 100 = 68.89
+    - ratio format: kept as-is (16.5 for 生师比)
+    """
     db = get_db()
     meta = db["meta"]
     years = meta["years"]
     target_year = year or years[-1]
-    
+
     year_data = db["data"].get(target_year, {})
-    
+
+    def normalize_value(val, ind_format):
+        """Normalize value to 0-100 scale for display."""
+        if ind_format == "pct":
+            return val * 100  # Convert decimal to percentage
+        elif ind_format == "ratio":
+            return val  # Keep ratio as-is (e.g., 16.5 for 16.5:1)
+        elif ind_format == "days":
+            return val  # Keep days as-is
+        else:
+            return val * 100  # Default: convert decimal to percentage
+
     if indicator_id:
         ind_meta = next((i for i in meta["indicators"] if i["id"] == indicator_id), None)
         if not ind_meta:
             raise HTTPException(status_code=404, detail="指标不存在")
-        
+
+        ind_format = ind_meta.get("format", "pct")
         data = []
         for m in meta["majors"]:
             mid = m["id"]
             mdata = year_data.get(mid, {})
             val = mdata.get(indicator_id, 0)
+            normalized_val = normalize_value(val, ind_format)
             data.append({
                 "majorId": mid,
                 "majorName": m["name"],
-                "value": val,
-                "level": get_level_value(val, indicator_id, {indicator_id: ind_meta})
+                "value": normalized_val,
+                "rawValue": val,
+                "level": get_level_value(val, indicator_id, {indicator_id: ind_meta}),
+                "format": ind_format
             })
-        
-        data.sort(key=lambda x: x["value"], reverse=True)
+
+        # Sort based on higher_is_better flag - for ratio indicators like 生师比, lower is better
+        reverse_sort = ind_meta.get("higher_is_better", True)
+        data.sort(key=lambda x: x["value"], reverse=reverse_sort)
         return {
             "year": target_year,
-            "indicator": {"id": indicator_id, "name": ind_meta["name"]},
+            "indicator": {"id": indicator_id, "name": ind_meta["name"], "format": ind_format},
             "data": data
         }
     else:
@@ -1053,20 +1069,25 @@ async def get_indicator_bar(indicator_id: str = None, year: str = None):
         all_data = {}
         for ind in meta["indicators"]:
             ind_id = ind["id"]
+            ind_format = ind.get("format", "pct")
             items = []
             for m in meta["majors"]:
                 mid = m["id"]
                 mdata = year_data.get(mid, {})
                 val = mdata.get(ind_id, 0)
+                normalized_val = normalize_value(val, ind_format)
                 items.append({
                     "majorId": mid,
                     "majorName": m["name"],
-                    "value": val,
-                    "level": get_level_value(val, ind_id, {ind_id: ind})
+                    "value": normalized_val,
+                    "rawValue": val,
+                    "level": get_level_value(val, ind_id, {ind_id: ind}),
+                    "format": ind_format
                 })
             items.sort(key=lambda x: x["value"], reverse=True)
             all_data[ind_id] = {
                 "name": ind["name"],
+                "format": ind_format,
                 "items": items
             }
         return {"year": target_year, "data": all_data}
