@@ -43,7 +43,8 @@ def overview():
             iid = ind['id']
             val = md['raw'].get(iid, 0)
             th = ind['thresholds']
-            level = get_level(val, th, iid)
+            ind_format = ind.get('format', 'pct')  # Default to pct
+            level = get_level(val, th, iid, ind_format)
             
             # Check blue: normal but negative trend vs previous year
             if level == 'green' and prev_data:
@@ -108,14 +109,17 @@ def major_detail(major_id):
                 iid = ind['id']
                 val = md['raw'].get(iid, 0)
                 score = md['score'].get(iid, 0)
-                level = get_level(val, ind['thresholds'], iid)
+                ind_format = ind.get('format', 'pct')
+                level = get_level(val, ind['thresholds'], iid, ind_format)
                 ind_details.append({
                     'id': iid,
                     'name': ind['name'],
                     'raw': val,
                     'score': score,
                     'weight': ind['weight'],
-                    'level': level
+                    'level': level,
+                    'format': ind_format,
+                    'unit': ind.get('unit', '')
                 })
             result['years'][year] = {
                 'indicators': ind_details,
@@ -155,6 +159,7 @@ def trends(major_id):
             slope = 0
             predicted_next = values[-1] if values else 0
         
+        ind_format = ind.get('format', 'pct')
         trends_data.append({
             'id': iid,
             'name': ind['name'],
@@ -162,7 +167,8 @@ def trends(major_id):
             'scores': scores,
             'slope': round(slope, 4),
             'predicted': round(predicted_next, 4),
-            'level': get_level(values[-1], ind['thresholds'], iid) if values else 'green'
+            'level': get_level(values[-1], ind['thresholds'], iid, ind_format) if values else 'green',
+            'format': ind_format
         })
     
     return jsonify({'years': years, 'trends': trends_data})
@@ -259,7 +265,8 @@ def warnings():
         for ind in meta['indicators']:
             iid = ind['id']
             val = md['raw'].get(iid, 0)
-            level = get_level(val, ind['thresholds'], iid)
+            ind_format = ind.get('format', 'pct')
+            level = get_level(val, ind['thresholds'], iid, ind_format)
             
             if level == 'green' and prev_data:
                 prev_val = prev_data.get(iid, 0)
@@ -277,7 +284,8 @@ def warnings():
                     'indicatorName': ind['name'],
                     'value': val,
                     'level': level,
-                    'change': change
+                    'change': change,
+                    'format': ind_format
                 })
     
     warnings_list.sort(key=lambda x: (0 if x['level'] == 'red' else 1, x['majorName']))
@@ -302,7 +310,8 @@ def report(major_id):
     for ind in meta['indicators']:
         iid = ind['id']
         val = md['raw'].get(iid, 0)
-        level = get_level(val, ind['thresholds'], iid)
+        ind_format = ind.get('format', 'pct')
+        level = get_level(val, ind['thresholds'], iid, ind_format)
         
         # Get trend
         values = [db['data'][y].get(major_id, {}).get('raw', {}).get(iid, 0) for y in meta['years']]
@@ -363,7 +372,29 @@ def report(major_id):
         'reportText': report_text
     })
 
-def format_value(val, iid):
+def format_value(val, iid, ind_format=None):
+    """Format value based on indicator format.
+    
+    Args:
+        val: The raw value
+        iid: Indicator ID (for backward compatibility)
+        ind_format: Optional format ('pct', 'ratio', 'days')
+    """
+    # For ratio format (生师比): show as "16.5:1"
+    if ind_format == 'ratio':
+        return f"{val:.1f}:1"
+    
+    # For pct format: show as percentage
+    if ind_format == 'pct':
+        # val is stored as decimal fraction (0.88 for 88%)
+        # Convert to percentage for display
+        return f"{val * 100:.1f}%"
+    
+    # For days format
+    if ind_format == 'days':
+        return f"{val:.1f}天"
+    
+    # Fallback for backward compatibility
     if iid == 'X11':
         return f"{val:.1f}天"
     elif val <= 2:
@@ -371,8 +402,34 @@ def format_value(val, iid):
     else:
         return f"{val:.2f}"
 
-def get_level(val, thresholds, iid):
-    """Determine warning level based on thresholds"""
+def get_level(val, thresholds, iid=None, ind_format=None):
+    """Determine warning level based on thresholds.
+    
+    For ratio format (like 生师比): lower is better
+    - green: val <= green_threshold (e.g., 18)
+    - yellow: green < val <= yellow_threshold (e.g., 22)
+    - red: val > yellow_threshold
+    
+    For pct format: higher is better
+    - Uses [low, high) tuple thresholds
+    """
+    # Check if this is a ratio format indicator
+    # Ratio thresholds have numeric values like {'green': 18, 'yellow': 22, 'red': 999}
+    # Pct thresholds have tuple values like {'red': [0, 0.85], 'yellow': [0.85, 0.90], ...}
+    
+    if ind_format == 'ratio' or (thresholds and isinstance(thresholds.get('green'), (int, float)) and not isinstance(thresholds.get('green'), tuple)):
+        # Ratio format: lower is better
+        green_thresh = thresholds.get('green', 18)
+        yellow_thresh = thresholds.get('yellow', 22)
+        
+        if val <= green_thresh:
+            return 'green'
+        elif val <= yellow_thresh:
+            return 'yellow'
+        else:
+            return 'red'
+    
+    # Pct format: higher is better (original logic)
     for level in ['red', 'yellow', 'blue', 'green']:
         if level in thresholds:
             low, high = thresholds[level]
