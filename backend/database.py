@@ -218,7 +218,7 @@ def get_year_data(year_name: str) -> Dict[str, Any]:
         
         result = {
             "meta": {
-                "school": "信息与机电工程系",
+                "school": "",
                 "years": get_years(),
                 "indicators": [],
                 "majors": []

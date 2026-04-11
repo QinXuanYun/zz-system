@@ -225,25 +225,33 @@ async def import_excel(
     year: str = Form(None)
 ):
     """Upload and import Excel file"""
-    if not file.filename.endswith(('.xlsx', '.xls')):
-        raise HTTPException(status_code=400, detail="只支持 Excel 文件")
+    import traceback
     
-    # Parse year from filename if not provided
-    if not year:
-        year = parse_year_from_filename(file.filename)
-    
-    if not year:
-        raise HTTPException(status_code=400, detail="无法从文件名解析年份，请手动指定")
-    
-    # Save file
-    file_path = EXCEL_DIR / f"{year}_{file.filename}"
-    with open(file_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
-    
-    # Parse Excel
     try:
+        if not file.filename.endswith(('.xlsx', '.xls')):
+            raise HTTPException(status_code=400, detail="只支持 Excel 文件")
+        
+        # Parse year from filename if not provided
+        if not year:
+            year = parse_year_from_filename(file.filename)
+        
+        if not year:
+            raise HTTPException(status_code=400, detail="无法从文件名解析年份，请手动指定")
+        
+        # Ensure excel directory exists
+        EXCEL_DIR.mkdir(parents=True, exist_ok=True)
+        
+        # Save file
+        file_path = EXCEL_DIR / f"{year}_{file.filename}"
+        with open(file_path, "wb") as f:
+            shutil.copyfileobj(file.file, f)
+        
+        # Parse Excel
         wb = load_workbook(file_path, data_only=True)
         sheet_names = list(wb.sheetnames)
+        
+        if len(sheet_names) < 2:
+            raise HTTPException(status_code=400, detail="Excel文件至少需要2个工作表（第一个是阈值表，后面是专业数据）")
         
         # Skip first sheet (thresholds), process remaining as major data
         majors_data = []
@@ -265,7 +273,10 @@ async def import_excel(
                             continue
                         ind_id = f"X{ind_num}"
                         raw_val = row[3] if row[3] is not None else 0
-                        indicators[ind_id] = raw_val
+                        # Handle empty or non-numeric values
+                        if raw_val is None or raw_val == '':
+                            raw_val = 0
+                        indicators[ind_id] = float(raw_val)
                     except Exception:
                         pass
             
@@ -274,16 +285,23 @@ async def import_excel(
                 "indicators": indicators
             })
         
+        if not majors_data:
+            raise HTTPException(status_code=400, detail="未找到有效的专业数据")
+        
         # Import to database
         success = import_excel_data(year, majors_data)
         
         if success:
             return {"success": True, "message": f"成功导入 {year} 数据，共 {len(majors_data)} 个专业"}
         else:
-            raise HTTPException(status_code=500, detail="数据导入失败")
+            raise HTTPException(status_code=500, detail="数据导入失败，请检查数据库连接")
             
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"文件解析错误: {str(e)}")
+        error_detail = f"导入错误: {str(e)}\n{traceback.format_exc()}"
+        print(error_detail)
+        raise HTTPException(status_code=500, detail=f"导入失败: {str(e)}")
 
 @app.get("/api/years")
 async def get_available_years():
