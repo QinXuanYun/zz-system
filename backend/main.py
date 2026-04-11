@@ -637,6 +637,9 @@ async def get_major_trends(major_id: str):
     if not years:
         raise HTTPException(status_code=404, detail="暂无数据")
     
+    # Sort years in ascending order (oldest first) for trend display
+    years = sorted(years)
+    
     # Get all year data
     all_years_data = {}
     for year in years:
