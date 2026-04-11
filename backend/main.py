@@ -253,13 +253,13 @@ async def import_excel(
         wb = load_workbook(file_path, data_only=True)
         sheet_names = list(wb.sheetnames)
         
-        if len(sheet_names) < 2:
-            raise HTTPException(status_code=400, detail="Excel文件至少需要2个工作表（第一个是阈值表，后面是专业数据）")
+        if len(sheet_names) < 1:
+            raise HTTPException(status_code=400, detail="Excel文件至少需要1个工作表")
         
-        # Skip first sheet (thresholds), process remaining as major data
+        # Process all sheets as major data (starting from first sheet)
         majors_data = []
         
-        for idx in range(1, min(16, len(sheet_names))):
+        for idx in range(0, min(16, len(sheet_names))):
             ws = wb[sheet_names[idx]]
             rows = list(ws.iter_rows(values_only=True))
             
