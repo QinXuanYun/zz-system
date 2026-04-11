@@ -925,6 +925,86 @@ async function doImport() {
         statusEl.style.color = '#ff4d4f';
     }
 }
+
+// ==================== DATA PREVIEW ====================
+async function showDataPreview() {
+    const modal = document.getElementById('dataPreviewModal');
+    const content = document.getElementById('dataPreviewContent');
+    modal.style.display = 'flex';
+    content.innerHTML = '<p>加载中...</p>';
+    
+    try {
+        // Get years
+        const yearsResp = await api('/api/years');
+        const years = yearsResp.years || [];
+        
+        if (years.length === 0) {
+            content.innerHTML = '<p style="color:#999;">数据库中暂无数据</p>';
+            return;
+        }
+        
+        let html = '<div style="margin-bottom:20px;">';
+        html += '<h4 style="margin-bottom:12px;">📅 可用学年</h4>';
+        html += '<div style="display:flex;gap:8px;flex-wrap:wrap;">';
+        years.forEach(year => {
+            html += `<span style="padding:4px 12px;background:#e6f7ff;color:#1890ff;border-radius:4px;font-size:12px;">${year}</span>`;
+        });
+        html += '</div></div>';
+        
+        // Show data for each year
+        for (const year of years.slice(0, 3)) { // Show max 3 years
+            html += `<div style="margin-bottom:24px;padding:16px;background:#f8f9fa;border-radius:8px;">`;
+            html += `<h4 style="margin-bottom:12px;color:#1a1a2e;">📊 ${year}</h4>`;
+            
+            try {
+                const data = await api(`/api/dashboard?year=${encodeURIComponent(year)}`);
+                
+                // Summary
+                html += '<div style="margin-bottom:16px;">';
+                html += '<h5 style="font-size:13px;color:#666;margin-bottom:8px;">概览</h5>';
+                html += '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;">';
+                html += `<div style="text-align:center;padding:8px;background:#fff;border-radius:6px;"><div style="font-size:20px;font-weight:700;color:#1a1a2e;">${data.summary.totalMajors}</div><div style="font-size:11px;color:#999;">专业数</div></div>`;
+                html += `<div style="text-align:center;padding:8px;background:#fff;border-radius:6px;"><div style="font-size:20px;font-weight:700;color:#ff4d4f;">${data.summary.red}</div><div style="font-size:11px;color:#999;">红色</div></div>`;
+                html += `<div style="text-align:center;padding:8px;background:#fff;border-radius:6px;"><div style="font-size:20px;font-weight:700;color:#faad14;">${data.summary.yellow}</div><div style="font-size:11px;color:#999;">黄色</div></div>`;
+                html += `<div style="text-align:center;padding:8px;background:#fff;border-radius:6px;"><div style="font-size:20px;font-weight:700;color:#1890ff;">${data.summary.blue}</div><div style="font-size:11px;color:#999;">蓝色</div></div>`;
+                html += `<div style="text-align:center;padding:8px;background:#fff;border-radius:6px;"><div style="font-size:20px;font-weight:700;color:#52c41a;">${data.summary.green}</div><div style="font-size:11px;color:#999;">绿色</div></div>`;
+                html += '</div></div>';
+                
+                // Majors
+                html += '<div>';
+                html += '<h5 style="font-size:13px;color:#666;margin-bottom:8px;">专业列表</h5>';
+                html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;">';
+                data.majors.slice(0, 8).forEach(m => {
+                    const color = m.healthScore >= 80 ? '#52c41a' : m.healthScore >= 60 ? '#faad14' : m.healthScore >= 40 ? '#1890ff' : '#ff4d4f';
+                    html += `<div style="padding:12px;background:#fff;border-radius:6px;border-left:3px solid ${color};">`;
+                    html += `<div style="font-weight:500;margin-bottom:4px;">${m.name}</div>`;
+                    html += `<div style="font-size:12px;color:#666;">健康度: <span style="color:${color};font-weight:600;">${m.healthScore}</span></div>`;
+                    html += `<div style="font-size:11px;color:#999;margin-top:4px;">`;
+                    html += `🟢${m.counts.green} 🟡${m.counts.yellow} 🔴${m.counts.red}`;
+                    html += '</div></div>';
+                });
+                if (data.majors.length > 8) {
+                    html += `<div style="padding:12px;background:#f0f0f0;border-radius:6px;text-align:center;color:#999;font-size:12px;">还有 ${data.majors.length - 8} 个专业...</div>`;
+                }
+                html += '</div></div>';
+                
+            } catch(e) {
+                html += `<p style="color:#ff4d4f;">加载 ${year} 数据失败</p>`;
+            }
+            
+            html += '</div>';
+        }
+        
+        content.innerHTML = html;
+        
+    } catch(e) {
+        content.innerHTML = `<p style="color:#ff4d4f;">加载数据失败: ${e.message}</p>`;
+    }
+}
+
+function hideDataPreview() {
+    document.getElementById('dataPreviewModal').style.display = 'none';
+}
 </script>
 
 <!-- Import Modal -->
@@ -941,8 +1021,22 @@ async function doImport() {
         </div>
         <div id="importStatus" style="margin-bottom:16px;font-size:13px;min-height:20px;"></div>
         <div style="display:flex;gap:12px;justify-content:flex-end;">
+            <button onclick="showDataPreview()" style="padding:8px 16px;border:1px solid #52c41a;background:#f6ffed;color:#52c41a;border-radius:6px;cursor:pointer;">👁️ 查看数据</button>
             <button onclick="hideImportModal()" style="padding:8px 16px;border:1px solid #d9d9d9;background:#fff;border-radius:6px;cursor:pointer;">取消</button>
             <button onclick="doImport()" style="padding:8px 16px;background:#1890ff;color:#fff;border:none;border-radius:6px;cursor:pointer;">导入</button>
+        </div>
+    </div>
+</div>
+
+<!-- Data Preview Modal -->
+<div id="dataPreviewModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1001;align-items:center;justify-content:center;">
+    <div style="background:#fff;padding:24px;border-radius:12px;width:90%;max-width:1200px;max-height:90vh;overflow:auto;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+            <h3 style="font-size:18px;">📊 数据库数据预览</h3>
+            <button onclick="hideDataPreview()" style="padding:6px 12px;border:1px solid #d9d9d9;background:#fff;border-radius:6px;cursor:pointer;">关闭</button>
+        </div>
+        <div id="dataPreviewContent" style="font-size:13px;">
+            <p>加载中...</p>
         </div>
     </div>
 </div>
