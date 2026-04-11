@@ -129,10 +129,19 @@ def get_indicator_meta_db() -> Dict[str, Dict]:
         db.close()
 
 def get_level_value(val: float, ind_id: str, ind_meta: Dict) -> str:
-    """Get warning level for an indicator value."""
-    thresholds = ind_meta.get("thresholds", {})
+    """Get warning level for an indicator value.
     
-    if ind_id == "X2":  # 生师比 - lower is better
+    Thresholds in database are stored as decimals (0.85 = 85%).
+    Values should already be converted to decimal format during import.
+    """
+    thresholds = ind_meta.get("thresholds", {})
+    fmt = ind_meta.get("format", "pct")
+    
+    # Ensure value is in correct format
+    if fmt == "pct" and val > 1:
+        val = val / 100.0
+    
+    if ind_id == "X2":  # 生师比 - lower is better (ratio format)
         green_thresh = thresholds.get("green", 18)
         yellow_thresh = thresholds.get("yellow", 22)
         if val <= green_thresh:
@@ -145,7 +154,16 @@ def get_level_value(val: float, ind_id: str, ind_meta: Dict) -> str:
     # For indicators where higher is better
     red_thresh = thresholds.get("red", 0)
     yellow_thresh = thresholds.get("yellow", 0)
-    green_thresh = thresholds.get("green", 100)
+    green_thresh = thresholds.get("green", 1.0 if fmt == "pct" else 100)
+    
+    # Ensure thresholds are in correct format
+    if fmt == "pct":
+        if red_thresh > 1:
+            red_thresh = red_thresh / 100.0
+        if yellow_thresh > 1:
+            yellow_thresh = yellow_thresh / 100.0
+        if green_thresh > 1:
+            green_thresh = green_thresh / 100.0
     
     if val >= green_thresh:
         return "green"
@@ -279,7 +297,16 @@ async def import_excel(
                         # Handle empty or non-numeric values
                         if raw_val is None or raw_val == '':
                             raw_val = 0
-                        indicators[ind_id] = float(raw_val)
+                        
+                        val = float(raw_val)
+                        
+                        # Convert percentage values (>=1) to decimal format (0-1)
+                        # For percentage indicators (X1, X3-X13), if value > 1, assume it's 0-100 format and convert to 0-1
+                        if ind_id in ['X1', 'X3', 'X4', 'X5', 'X6', 'X7', 'X8', 'X9', 'X10', 'X11', 'X12', 'X13']:
+                            if val > 1:
+                                val = val / 100.0
+                        
+                        indicators[ind_id] = val
                     except Exception:
                         pass
             

@@ -91,7 +91,7 @@ def init_indicator_meta():
             {
                 "indicator_id": "X1", "name": "报到率", "weight": 5, "unit": "%",
                 "method": "(实际录取数/招生计划数)*100%",
-                "red_threshold": 0.85, "yellow_threshold": 0.90, "green_threshold": 1.00,
+                "red_threshold": 0.85, "yellow_threshold": 0.90, "green_threshold": 0.90,
                 "higher_is_better": 1, "format": "pct"
             },
             {
@@ -115,13 +115,13 @@ def init_indicator_meta():
             {
                 "indicator_id": "X5", "name": "毕业率", "weight": 3, "unit": "%",
                 "method": "当届毕业生实际毕业比例",
-                "red_threshold": 0.95, "yellow_threshold": 0.97, "green_threshold": 1.00,
+                "red_threshold": 0.95, "yellow_threshold": 0.97, "green_threshold": 0.97,
                 "higher_is_better": 1, "format": "pct"
             },
             {
                 "indicator_id": "X6", "name": "就业去向落实率", "weight": 5, "unit": "%",
                 "method": "截止当年底的毕业生就业率",
-                "red_threshold": 0.92, "yellow_threshold": 0.96, "green_threshold": 1.00,
+                "red_threshold": 0.92, "yellow_threshold": 0.96, "green_threshold": 0.96,
                 "higher_is_better": 1, "format": "pct"
             },
             {
@@ -151,13 +151,13 @@ def init_indicator_meta():
             {
                 "indicator_id": "X11", "name": "双师型专任教师占比", "weight": 3, "unit": "%",
                 "method": "双师型专任教师占专任教师总数的百分比",
-                "red_threshold": 0.60, "yellow_threshold": 0.75, "green_threshold": 1.00,
+                "red_threshold": 0.60, "yellow_threshold": 0.75, "green_threshold": 0.75,
                 "higher_is_better": 1, "format": "pct"
             },
             {
                 "indicator_id": "X12", "name": "高级职称专任教师占比", "weight": 3, "unit": "%",
                 "method": "高级职称的专任教师占专任教师总数的比例",
-                "red_threshold": 0.15, "yellow_threshold": 0.25, "green_threshold": 1.00,
+                "red_threshold": 0.15, "yellow_threshold": 0.25, "green_threshold": 0.25,
                 "higher_is_better": 1, "format": "pct"
             },
             {
