@@ -628,6 +628,285 @@ async def get_indicator_bar(indicator_id: str = None, year: str = None):
         return {"year": target_year, "data": all_data}
 
 # ============================================================
+# Trends Endpoint
+# ============================================================
+@app.get("/api/major/{major_id}/trends")
+async def get_major_trends(major_id: str):
+    """Get trend data for a major across all years"""
+    years = get_years()
+    if not years:
+        raise HTTPException(status_code=404, detail="暂无数据")
+    
+    # Get all year data
+    all_years_data = {}
+    for year in years:
+        db_data = get_year_data(year)
+        if db_data and year in db_data["data"]:
+            all_years_data[year] = db_data["data"][year]
+    
+    if not all_years_data:
+        raise HTTPException(status_code=404, detail="无趋势数据")
+    
+    # Get metadata from most recent year
+    latest_year = years[-1]
+    db_data = get_year_data(latest_year)
+    meta = db_data["meta"]
+    
+    major_meta = next((m for m in meta["majors"] if m["id"] == major_id), None)
+    if not major_meta:
+        raise HTTPException(status_code=404, detail="专业不存在")
+    
+    trends = []
+    ind_dict = {ind["id"]: ind for ind in meta["indicators"]}
+    
+    for ind in meta["indicators"]:
+        ind_id = ind["id"]
+        values = []
+        
+        for year in years:
+            year_data = all_years_data.get(year, {})
+            mdata = year_data.get(major_id, {})
+            values.append(mdata.get(ind_id, 0))
+        
+        # Calculate trend slope
+        n = len(values)
+        if n >= 2:
+            x_mean = (n - 1) / 2
+            y_mean = sum(values) / n
+            num = sum((i - x_mean) * (values[i] - y_mean) for i in range(n))
+            den = sum((i - x_mean) ** 2 for i in range(n))
+            slope = num / den if den != 0 else 0
+        else:
+            slope = 0
+        
+        trends.append({
+            "id": ind_id,
+            "name": ind["name"],
+            "values": values,
+            "slope": round(slope, 4),
+            "level": get_level_value(values[-1], ind_id, ind_dict) if values else "green",
+            "format": ind.get("format", "num"),
+            "unit": ind.get("unit", "")
+        })
+    
+    return {"years": years, "trends": trends, "majorName": major_meta["name"]}
+
+# ============================================================
+# Warnings Endpoint
+# ============================================================
+@app.get("/api/warnings")
+async def get_warnings(year: str = None):
+    """Get all warning items"""
+    years = get_years()
+    if not years:
+        raise HTTPException(status_code=404, detail="暂无数据")
+    
+    target_year = year or years[-1]
+    db_data = get_year_data(target_year)
+    
+    if not db_data:
+        raise HTTPException(status_code=404, detail="年份不存在")
+    
+    meta = db_data["meta"]
+    year_data = db_data["data"].get(target_year, {})
+    ind_dict = {ind["id"]: ind for ind in meta["indicators"]}
+    
+    warnings_list = []
+    
+    for m in meta["majors"]:
+        mid = m["id"]
+        mdata = year_data.get(mid, {})
+        
+        for ind in meta["indicators"]:
+            ind_id = ind["id"]
+            val = mdata.get(ind_id, 0)
+            level = get_level_value(val, ind_id, ind_dict)
+            
+            if level in ("red", "yellow", "blue"):
+                warnings_list.append({
+                    "majorId": mid,
+                    "majorName": m["name"],
+                    "indicatorId": ind_id,
+                    "indicatorName": ind["name"],
+                    "value": val,
+                    "level": level,
+                    "change": None,
+                    "format": ind.get("format", "num"),
+                    "unit": ind.get("unit", "")
+                })
+    
+    # Sort: red first, then yellow, then blue
+    warnings_list.sort(key=lambda x: (0 if x["level"] == "red" else 1 if x["level"] == "yellow" else 2, x["majorName"]))
+    
+    return {"year": target_year, "warnings": warnings_list}
+
+# ============================================================
+# Report Endpoints
+# ============================================================
+@app.get("/api/report/{major_id}")
+async def generate_report(major_id: str, year: str = None):
+    """Generate comprehensive diagnostic report for a major"""
+    years = get_years()
+    if not years:
+        raise HTTPException(status_code=404, detail="暂无数据")
+    
+    target_year = year or years[-1]
+    db_data = get_year_data(target_year)
+    
+    if not db_data:
+        raise HTTPException(status_code=404, detail="年份不存在")
+    
+    meta = db_data["meta"]
+    year_data = db_data["data"].get(target_year, {})
+    mdata = year_data.get(major_id, {})
+    
+    major_meta = next((m for m in meta["majors"] if m["id"] == major_id), None)
+    if not major_meta:
+        raise HTTPException(status_code=404, detail="专业不存在")
+    
+    ind_dict = {ind["id"]: ind for ind in meta["indicators"]}
+    
+    # Categorize indicators
+    red_items = []
+    yellow_items = []
+    blue_items = []
+    green_items = []
+    
+    for ind in meta["indicators"]:
+        ind_id = ind["id"]
+        val = mdata.get(ind_id, 0)
+        level = get_level_value(val, ind_id, ind_dict)
+        
+        item = {
+            "id": ind_id,
+            "name": ind["name"],
+            "value": val,
+            "level": level,
+            "trend": "stable",
+            "change": None,
+            "unit": ind.get("unit", ""),
+            "format": ind.get("format", "num")
+        }
+        
+        if level == "red":
+            red_items.append(item)
+        elif level == "yellow":
+            yellow_items.append(item)
+        elif level == "blue":
+            blue_items.append(item)
+        else:
+            green_items.append(item)
+    
+    # Calculate health score
+    total = len(meta["indicators"])
+    health_score = (len(green_items) * 100 + len(blue_items) * 80 + 
+                   len(yellow_items) * 50 + len(red_items) * 0) / max(total, 1)
+    
+    # Generate report text
+    report_lines = []
+    report_lines.append(f"{'='*50}")
+    report_lines.append(f"【{major_meta['name']}】专业发展智诊报告")
+    report_lines.append(f"生成时间：{datetime.now().strftime('%Y年%m月%d日 %H:%M')}")
+    report_lines.append(f"数据年度：{target_year}")
+    report_lines.append(f"{'='*50}")
+    report_lines.append("")
+    
+    # 一、总体评价
+    report_lines.append("一、总体评价")
+    report_lines.append(f"本专业共监测{len(meta['indicators'])}项核心指标，")
+    report_lines.append(f"其中绿色指标{len(green_items)}项、蓝色关注指标{len(blue_items)}项、")
+    report_lines.append(f"黄色预警指标{len(yellow_items)}项、红色预警指标{len(red_items)}项。")
+    report_lines.append(f"综合健康度得分：{health_score:.1f}分。")
+    
+    if health_score >= 80:
+        report_lines.append("总体评价：优秀。该专业整体发展状况良好，各项指标表现稳定。")
+    elif health_score >= 60:
+        report_lines.append("总体评价：良好。该专业整体发展状况正常，部分指标需持续关注。")
+    elif health_score >= 40:
+        report_lines.append("总体评价：一般。该专业存在一定的预警指标，需要重点改进。")
+    else:
+        report_lines.append("总体评价：较差。该专业多项指标处于预警状态，需紧急干预。")
+    
+    report_lines.append("")
+    
+    # 二、各指标分析
+    report_lines.append("二、各指标分析")
+    
+    if red_items:
+        report_lines.append("")
+        report_lines.append("（一）红色预警指标：")
+        for item in red_items:
+            val_str = format_value(item["value"], item["id"], item["format"])
+            report_lines.append(f"  {item['name']}：{val_str}{item['unit']}，建议立即改进。")
+    
+    if yellow_items:
+        report_lines.append("")
+        report_lines.append("（二）黄色预警指标：")
+        for item in yellow_items:
+            val_str = format_value(item["value"], item["id"], item["format"])
+            report_lines.append(f"  {item['name']}：{val_str}{item['unit']}，建议密切关注。")
+    
+    if blue_items:
+        report_lines.append("")
+        report_lines.append("（三）蓝色关注指标：")
+        for item in blue_items:
+            val_str = format_value(item["value"], item["id"], item["format"])
+            report_lines.append(f"  {item['name']}：{val_str}{item['unit']}，需持续关注。")
+    
+    if green_items:
+        report_lines.append("")
+        report_lines.append("（四）绿色健康指标：")
+        for item in green_items:
+            val_str = format_value(item["value"], item["id"], item["format"])
+            report_lines.append(f"  {item['name']}：{val_str}{item['unit']}，趋势健康。")
+    
+    report_lines.append("")
+    
+    # 三、综合建议
+    report_lines.append("三、综合改进建议")
+    
+    if red_items:
+        report_lines.append("")
+        report_lines.append("1. 紧急改进事项：")
+        for item in red_items[:2]:
+            report_lines.append(f"   · {item['name']}指标严重偏低，需紧急调配资源。")
+    
+    if yellow_items:
+        report_lines.append("")
+        report_lines.append("2. 重点提升事项：")
+        for item in yellow_items[:2]:
+            report_lines.append(f"   · 加强{item['name']}领域的建设。")
+    
+    if blue_items:
+        report_lines.append("")
+        report_lines.append("3. 持续关注事项：")
+        for item in blue_items[:2]:
+            report_lines.append(f"   · 保持{item['name']}指标的稳定性。")
+    
+    if not red_items and not yellow_items and not blue_items:
+        report_lines.append("")
+        report_lines.append("继续保持当前良好的发展态势。")
+    
+    report_lines.append("")
+    report_lines.append(f"{'='*50}")
+    report_lines.append("报告由专业发展智诊系统自动生成")
+    report_lines.append(f"生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    
+    report_text = "\n".join(report_lines)
+    
+    return {
+        "majorId": major_id,
+        "majorName": major_meta["name"],
+        "year": target_year,
+        "healthScore": round(health_score, 1),
+        "red": red_items,
+        "yellow": yellow_items,
+        "blue": blue_items,
+        "green": green_items,
+        "reportText": report_text
+    }
+
+# ============================================================
 # Static Files
 # ============================================================
 @app.get("/")

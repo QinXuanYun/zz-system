@@ -348,10 +348,18 @@ async function api(url, opts = {}) {
 let dashData = null;
 let warningChart = null;
 
-async function initApp() {
+async function initApp(targetYear = null) {
     try {
-        dashData = await api('/api/dashboard');
-        currentYear = dashData.year;
+        // If targetYear is specified, fetch data for that year
+        const url = targetYear ? `/api/dashboard?year=${encodeURIComponent(targetYear)}` : '/api/dashboard';
+        dashData = await api(url);
+        
+        // Only update currentYear if not switching years
+        if (!targetYear) {
+            currentYear = dashData.year;
+        } else {
+            currentYear = targetYear;
+        }
         
         // Populate year select
         const yearSelect = document.getElementById('yearSelect');
@@ -359,8 +367,10 @@ async function initApp() {
             `<option value="${y}" ${y === currentYear ? 'selected' : ''}>${y}</option>`
         ).join('');
         
+        // Set the select value to current year
+        yearSelect.value = currentYear;
+        
         renderDashboard(dashData);
-        initRanking();
         initWarnings();
     } catch(e) {
         console.error('Init error:', e);
@@ -369,7 +379,7 @@ async function initApp() {
 
 function switchYear(year) {
     currentYear = year;
-    initApp();
+    initApp(year);
 }
 
 // ==================== DASHBOARD ====================
