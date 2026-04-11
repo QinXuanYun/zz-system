@@ -226,7 +226,7 @@
                 </div>
                 
                 <!-- Ranking card -->
-                <div class="card"><div class="card-title">🏆 专业综合排行榜</div>
+                <div class="card"><div class="card-title">🏆 专业综合排行榜 （得分）</div>
                     <div class="ranking-list" id="dashboardRanking"></div>
                 </div>
                 
@@ -267,10 +267,10 @@
             
             <!-- Ranking Section -->
             <div class="section" id="sec-ranking">
-                <div class="card"><div class="card-title">🏆 综合排行榜得分</div>
+                <div class="card"><div class="card-title">🏆 综合排行榜 （得分）</div>
                     <div class="ranking-list" id="rankingList"></div>
                 </div>
-                <div class="card"><div class="card-title">📊 各指标排行</div>
+                <div class="card"><div class="card-title">📊 各指标排行 （得分）</div>
                     <div class="tab-bar" id="rankingTabs"></div>
                     <div class="ranking-list" id="rankingByIndicator"></div>
                 </div>
@@ -451,7 +451,13 @@ async function showMajorDetail(majorId) {
     try {
         const data = await api(`/api/major/${majorId}?year=${currentYear}`);
 
-        document.getElementById('detailTitle').textContent = `${data.majorName} - ${data.year}`;
+        // Count indicators by level
+        const counts = {red: 0, yellow: 0, blue: 0, green: 0};
+        data.indicators.forEach(ind => {
+            counts[ind.level]++;
+        });
+        
+        document.getElementById('detailTitle').textContent = `${data.majorName} - ${data.year}（红色预警：${counts.red}，黄色预警：${counts.yellow}，绿色预警：${counts.green}）`;
         document.getElementById('majorsGrid').style.display = 'none';
         document.querySelector('.card').style.display = 'none';
         document.getElementById('detailPanel').style.display = 'block';
@@ -800,7 +806,7 @@ async function renderReportRadar(data) {
     reportRadarChart = chart;
 
     const indicators = ['X1','X2','X3','X4','X5','X6','X7','X8','X9','X10'];
-    const names = ['招生计划完成率','生师比','课程优良率','技能证书通过率','毕业率','就业去向落实率','专业相关度','在校生满意度','毕业生满意度','企业订单学生占比'];
+    const names = ['报到率','生师比','课程优良率','技能证书通过率','毕业率','就业去向落实率','专业相关度','在校生满意度','毕业生满意度','企业订单学生占比'];
 
     // Normalize values
     const scores = indicators.map((id, i) => {
@@ -843,28 +849,27 @@ async function renderReportBar(data) {
 
     chart.setOption({
         tooltip: {trigger: 'axis'},
+        legend: {data: ['指标得分', '平均值'], top: 0},
         xAxis: {type: 'category', data: allItems.map(i => i.name), axisLabel: {rotate: 15, interval: 0}},
         yAxis: {type: 'value', max: 100},
         series: [
             {
+                name: '指标得分',
                 type: 'bar',
                 data: allItems.map(i => ({
                     value: (i.value * 100).toFixed(1),
                     itemStyle: {color: colors[i.level]}
-                }))
-            },
-            {
-                type: 'line',
+                })),
                 markLine: {
                     silent: true,
-                    lineStyle: {color: '#ff4d4f', type: 'dashed'},
-                    data: [{yAxis: avg}],
-                    label: {formatter: '平均值: ' + avg.toFixed(1), position: 'end'}
-                },
-                data: []
+                    symbol: 'none',
+                    lineStyle: {color: '#ff4d4f', type: 'dashed', width: 2},
+                    data: [{yAxis: avg, name: '平均值'}],
+                    label: {formatter: '平均值: {c}', position: 'end', color: '#ff4d4f'}
+                }
             }
         ],
-        grid: {top: 30, bottom: 50, left: 60, right: 20}
+        grid: {top: 40, bottom: 50, left: 60, right: 20}
     });
 }
 

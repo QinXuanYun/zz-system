@@ -27,12 +27,37 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
 
-# Register Chinese font for PDF
-try:
-    pdfmetrics.registerFont(TTFont('WenQuanYi', '/usr/share/fonts/wqy-microhei/wqy-microhei.ttc'))
-    PDF_FONT = 'WenQuanYi'
-except Exception:
-    PDF_FONT = 'Helvetica'
+# Register Chinese font for PDF - Support Windows, Linux, macOS
+def register_chinese_font():
+    """Try to register a Chinese font for PDF generation."""
+    font_paths = [
+        # Windows fonts
+        r"C:\Windows\Fonts\msyh.ttc",  # Microsoft YaHei
+        r"C:\Windows\Fonts\simhei.ttf",  # SimHei
+        r"C:\Windows\Fonts\simsun.ttc",  # SimSun
+        r"C:\Windows\Fonts\msyhbd.ttc",  # Microsoft YaHei Bold
+        # Linux fonts
+        "/usr/share/fonts/wqy-microhei/wqy-microhei.ttc",
+        "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        # macOS fonts
+        "/System/Library/Fonts/PingFang.ttc",
+        "/Library/Fonts/Arial Unicode.ttf",
+    ]
+    
+    for font_path in font_paths:
+        if os.path.exists(font_path):
+            try:
+                font_name = os.path.basename(font_path).split('.')[0]
+                pdfmetrics.registerFont(TTFont(font_name, font_path))
+                return font_name
+            except Exception:
+                continue
+    
+    # Fallback to Helvetica if no Chinese font found
+    return 'Helvetica'
+
+PDF_FONT = register_chinese_font()
 
 # ============================================================
 # JWT Config
@@ -99,7 +124,7 @@ def build_indicator_meta() -> dict:
     """
     return {
         "X1": {
-            "name": "招生计划完成率", "weight": 5, "unit": "%",
+            "name": "报到率", "weight": 5, "unit": "%",
             "method": "(实际录取数/招生计划数)*100%",
             "thresholds": {"red": 0.85, "yellow": 0.90, "green": 1.00},
             "higher_is_better": True, "format": "pct"
