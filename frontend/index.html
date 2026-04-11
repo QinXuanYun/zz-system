@@ -255,7 +255,7 @@
             
             <!-- Compare Section -->
             <div class="section" id="sec-compare">
-                <div class="card"><div class="card-title">📈 专业对比</div>
+                <div class="card"><div class="card-title">📈 专业对比 （得分）</div>
                     <div class="compare-checkboxes" id="compareCbs"></div>
                     <div class="chart-container" id="radarCompare"></div>
                 </div>
@@ -267,6 +267,10 @@
             
             <!-- Ranking Section -->
             <div class="section" id="sec-ranking">
+                <div class="card"><div class="card-title">📈 专业对比 （得分）</div>
+                    <div class="compare-checkboxes" id="rankingCompareCbs"></div>
+                    <div class="chart-container" id="rankingRadarCompare"></div>
+                </div>
                 <div class="card"><div class="card-title">🏆 综合排行榜 （得分）</div>
                     <div class="ranking-list" id="rankingList"></div>
                 </div>
@@ -700,8 +704,13 @@ async function renderIndicatorBar(indId) {
 
 // ==================== RANKING ====================
 let rankingByIndicatorData = null;
+let rankingCompareMajorIds = [];
+let rankingCompareChartInst = null;
 
 async function initRanking() {
+    // Professional comparison chart at top
+    await initRankingCompare();
+    
     // Overall ranking
     const overall = await api(`/api/ranking?year=${currentYear}`);
     renderRankingList('rankingList', overall.rankings, false);
@@ -719,6 +728,67 @@ async function initRanking() {
     if (indIds.length > 0) {
         renderRankingByIndicator(indIds[0]);
     }
+}
+
+async function initRankingCompare() {
+    try {
+        // All majors for compare checkboxes
+        const allMajors = dashData.majors;
+        rankingCompareMajorIds = allMajors.slice(0, 3).map(m => m.id); // default first 3
+        
+        const cbs = document.getElementById('rankingCompareCbs');
+        cbs.innerHTML = allMajors.map(m => `
+            <div class="compare-cb ${rankingCompareMajorIds.includes(m.id) ? 'checked' : ''}" onclick="toggleRankingCompare('${m.id}', this)">
+                ${m.name}
+            </div>
+        `).join('');
+        
+        await renderRankingCompareChart();
+    } catch(e) {
+        console.error('Ranking compare init error:', e);
+    }
+}
+
+function toggleRankingCompare(majorId, el) {
+    const idx = rankingCompareMajorIds.indexOf(majorId);
+    if (idx >= 0) {
+        rankingCompareMajorIds.splice(idx, 1);
+        el.classList.remove('checked');
+    } else {
+        rankingCompareMajorIds.push(majorId);
+        el.classList.add('checked');
+    }
+    renderRankingCompareChart();
+}
+
+async function renderRankingCompareChart() {
+    if (rankingCompareMajorIds.length === 0) return;
+    
+    const comp = await api(`/api/compare?majors=${rankingCompareMajorIds.join(',')}&year=${currentYear}`);
+    
+    if (!rankingCompareChartInst) {
+        rankingCompareChartInst = echarts.init(document.getElementById('rankingRadarCompare'));
+    }
+    
+    const colors = ['#ff6b6b','#1890ff','#52c41a','#faad14','#9c27b0'];
+    
+    rankingCompareChartInst.setOption({
+        tooltip: {trigger: 'item'},
+        legend: {top: 0, data: comp.majors.map(m => m.name)},
+        radar: {
+            indicator: comp.indicators.map(i => ({name: i.name, max: 100})),
+            radius: '65%'
+        },
+        series: [{
+            type: 'radar',
+            data: comp.majors.map((m, i) => ({
+                value: m.scores,
+                name: m.name,
+                areaStyle: {opacity: 0.1},
+                itemStyle: {color: colors[i] || colors[0]}
+            }))
+        }]
+    });
 }
 
 function renderRankingList(containerId, rankings, isRatio) {
@@ -887,6 +957,7 @@ function showSection(name) {
     
     // Init section if needed
     if (name === 'report') initReport();
+    if (name === 'ranking') initRanking();
     
     // Resize charts
     setTimeout(() => {
@@ -895,6 +966,7 @@ function showSection(name) {
         if (indicatorBarChartInst) indicatorBarChartInst.resize();
         if (reportRadarChart) reportRadarChart.resize();
         if (reportBarChart) reportBarChart.resize();
+        if (rankingCompareChartInst) rankingCompareChartInst.resize();
     }, 100);
 }
 

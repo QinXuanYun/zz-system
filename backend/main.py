@@ -202,15 +202,13 @@ def load_data_from_xlsx() -> dict:
     wb = load_workbook(xlsx_path, data_only=True)
     sheet_names = list(wb.sheetnames)
 
-    # Major names mapping (Sheet1 is threshold sheet, sheets 2-6 are major data)
-    # Excel Sheet 4 = 软件技术 (X8=92.6%), Sheet 5 = 计算机网络技术 (X8=86.3%)
-    major_names = [
-        "航空装备制造类",
-        "机电一体化技术",
-        "汽车检测与维修技术",
-        "软件技术",
-        "计算机网络技术"
-    ]
+    # Read major names from Excel sheet names (skip Sheet1 which is threshold sheet)
+    # Use sheet names directly as major names
+    major_names = []
+    for idx in range(1, min(6, len(sheet_names))):
+        sheet_name = sheet_names[idx]
+        # Clean up sheet name if needed
+        major_names.append(sheet_name)
 
     indicators_meta = build_indicator_meta()
     # Map Excel column index to indicator ID (X1-X10 only)
@@ -259,14 +257,10 @@ def load_data_from_xlsx() -> dict:
 
             majors_data[year][major_id] = year_data
 
-    # Build metadata
-    meta_majors = [
-        {"id": "major_0", "name": "航空装备制造类", "fullName": "航空装备制造类"},
-        {"id": "major_1", "name": "机电一体化技术", "fullName": "机电一体化技术"},
-        {"id": "major_2", "name": "汽车检测与维修技术", "fullName": "汽车检测与维修技术"},
-        {"id": "major_3", "name": "软件技术", "fullName": "软件技术"},
-        {"id": "major_4", "name": "计算机网络技术", "fullName": "计算机网络技术(含中高职贯通)"}
-    ]
+    # Build metadata using Excel sheet names as major names
+    meta_majors = []
+    for idx, name in enumerate(major_names):
+        meta_majors.append({"id": f"major_{idx}", "name": name, "fullName": name})
 
     return {
         "meta": {
@@ -304,11 +298,11 @@ def load_fallback_data() -> dict:
             "years": years,
             "indicators": [dict(id=k, **v) for k, v in indicators_meta.items()],
             "majors": [
-                {"id": "major_0", "name": "航空装备制造类", "fullName": "航空装备制造类"},
-                {"id": "major_1", "name": "机电一体化技术", "fullName": "机电一体化技术"},
-                {"id": "major_2", "name": "汽车检测与维修技术", "fullName": "汽车检测与维修技术"},
-                {"id": "major_3", "name": "软件技术", "fullName": "软件技术"},
-                {"id": "major_4", "name": "计算机网络技术", "fullName": "计算机网络技术(含中高职贯通)"}
+                {"id": "major_0", "name": "专业1", "fullName": "专业1"},
+                {"id": "major_1", "name": "专业2", "fullName": "专业2"},
+                {"id": "major_2", "name": "专业3", "fullName": "专业3"},
+                {"id": "major_3", "name": "专业4", "fullName": "专业4"},
+                {"id": "major_4", "name": "专业5", "fullName": "专业5"}
             ]
         },
         "data": majors_data
