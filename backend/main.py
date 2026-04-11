@@ -1,15 +1,17 @@
 """
-专业发展智诊系统 - FastAPI Backend (v2)
-With JWT authentication and updated 7-indicator system
+专业发展智诊系统 - FastAPI Backend (v3)
+With Database support, JWT authentication
 """
 import json
 import os
 import math
+import re
+import shutil
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
-from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi import FastAPI, HTTPException, Depends, status, UploadFile, File, Form
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse, HTMLResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -27,20 +29,23 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
 
+# Import database
+from database import (
+    get_db, get_years, get_year_data, import_excel_data,
+    IndicatorMeta, SessionLocal, init_db
+)
+
 # Register Chinese font for PDF - Support Windows, Linux, macOS
 def register_chinese_font():
     """Try to register a Chinese font for PDF generation."""
     font_paths = [
-        # Windows fonts
-        r"C:\Windows\Fonts\msyh.ttc",  # Microsoft YaHei
-        r"C:\Windows\Fonts\simhei.ttf",  # SimHei
-        r"C:\Windows\Fonts\simsun.ttc",  # SimSun
-        r"C:\Windows\Fonts\msyhbd.ttc",  # Microsoft YaHei Bold
-        # Linux fonts
+        r"C:\Windows\Fonts\msyh.ttc",
+        r"C:\Windows\Fonts\simhei.ttf",
+        r"C:\Windows\Fonts\simsun.ttc",
+        r"C:\Windows\Fonts\msyhbd.ttc",
         "/usr/share/fonts/wqy-microhei/wqy-microhei.ttc",
         "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
         "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-        # macOS fonts
         "/System/Library/Fonts/PingFang.ttc",
         "/Library/Fonts/Arial Unicode.ttf",
     ]
@@ -53,23 +58,17 @@ def register_chinese_font():
                 return font_name
             except Exception:
                 continue
-    
-    # Fallback to Helvetica if no Chinese font found
     return 'Helvetica'
 
 PDF_FONT = register_chinese_font()
 
-# ============================================================
 # JWT Config
-# ============================================================
 SECRET_KEY = "zyzd-secret-key-2024专业发展智诊系统"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 24
 
-# ============================================================
 # FastAPI App
-# ============================================================
-app = FastAPI(title="专业发展智诊系统", version="2.0.0")
+app = FastAPI(title="专业发展智诊系统", version="3.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -79,363 +78,57 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ============================================================
-# Data Loading from xlsx
-# ============================================================
-DATA_XLSX = Path(__file__).parent.parent / "data" / "indicators_v2.json"
+# Excel storage path
+EXCEL_DIR = Path(__file__).parent.parent / "excel"
+EXCEL_DIR.mkdir(exist_ok=True)
 
-def get_level(val: float, thresholds: dict, ind_id: str) -> str:
-    """Determine warning level based on thresholds.
+# ============================================================
+# Helpers
+# ============================================================
+def parse_year_from_filename(filename: str) -> Optional[str]:
+    """Parse year from filename like '指标、阈值及数据-2020年.xlsx'"""
+    # Match patterns like: 2020年, 2020-2021, 2020-2021学年
+    patterns = [
+        r'(\d{4})[-\s]*(\d{4})?\s*学年?',
+        r'(\d{4})\s*年',
+    ]
     
-    For indicators where higher is better (most):
-      red < yellow < green
-    For 生师比 (ratio, lower is better):
-      red means > threshold, green means <= threshold
-    """
-    if ind_id == "X2":  # 生师比 - lower is better
-        # thresholds: green <= 18, yellow 18-22, red > 22
-        if val <= 18:
-            return "green"
-        elif val <= 22:
-            return "yellow"
-        else:
-            return "red"
+    for pattern in patterns:
+        match = re.search(pattern, filename)
+        if match:
+            year1 = match.group(1)
+            year2 = match.group(2) if match.group(2) else str(int(year1) + 1)
+            return f"{year1}-{year2}学年"
     
-    # Default: higher is better
-    green_thresh = thresholds.get("green", 999)
-    yellow_thresh = thresholds.get("yellow", 0)
-    blue_thresh = thresholds.get("blue", 0)
-    
-    if val >= green_thresh:
-        return "green"
-    elif val >= yellow_thresh:
-        return "yellow"
-    elif val >= blue_thresh:
-        return "blue"
-    else:
-        return "red"
+    return None
 
-
-def build_indicator_meta() -> dict:
-    """Build indicator metadata - 10 core indicators per user requirements.
-
-    Data from Excel stores percentage values as decimals (e.g., 1.0919 = 109.19%).
-    Thresholds are stored in decimal format to match data (e.g., 0.85 = 85%).
-    """
-    return {
-        "X1": {
-            "name": "报到率", "weight": 5, "unit": "%",
-            "method": "(实际录取数/招生计划数)*100%",
-            "thresholds": {"red": 0.85, "yellow": 0.90, "green": 1.00},
-            "higher_is_better": True, "format": "pct"
-        },
-        "X2": {
-            "name": "生师比", "weight": 3, "unit": ":1",
-            "method": "折合在校生数/折合专任教师数",
-            "thresholds": {"green": 18, "yellow": 22, "red": 999},
-            "higher_is_better": False, "format": "ratio"
-        },
-        "X3": {
-            "name": "课程优良率", "weight": 3, "unit": "%",
-            "method": "学生评教分数/专业课程门数",
-            "thresholds": {"red": 0.70, "yellow": 0.85, "green": 1.00},
-            "higher_is_better": True, "format": "pct"
-        },
-        "X4": {
-            "name": "技能证书通过率", "weight": 4, "unit": "%",
-            "method": "获得职业资格证书学生数/学年生均学生数",
-            "thresholds": {"red": 0.60, "yellow": 0.75, "green": 1.00},
-            "higher_is_better": True, "format": "pct"
-        },
-        "X5": {
-            "name": "毕业率", "weight": 3, "unit": "%",
-            "method": "实际毕业学生数/毕业生总数",
-            "thresholds": {"red": 0.90, "yellow": 0.95, "green": 1.00},
-            "higher_is_better": True, "format": "pct"
-        },
-        "X6": {
-            "name": "就业去向落实率", "weight": 5, "unit": "%",
-            "method": "落实去向学生数/毕业生总数",
-            "thresholds": {"red": 0.92, "yellow": 0.96, "green": 1.00},
-            "higher_is_better": True, "format": "pct"
-        },
-        "X7": {
-            "name": "专业相关度", "weight": 4, "unit": "%",
-            "method": "专业对口岗位学生数/总岗位学生数",
-            "thresholds": {"red": 0.68, "yellow": 0.70, "green": 1.00},
-            "higher_is_better": True, "format": "pct"
-        },
-        "X8": {
-            "name": "在校生满意度", "weight": 4, "unit": "%",
-            "method": "满意人数/总问卷人数",
-            "thresholds": {"red": 0.91, "yellow": 0.91, "green": 0.95},
-            "higher_is_better": True, "format": "pct"
-        },
-        "X9": {
-            "name": "毕业生满意度", "weight": 4, "unit": "%",
-            "method": "满意人数/总问卷人数",
-            "thresholds": {"red": 0.92, "yellow": 0.92, "green": 0.95},
-            "higher_is_better": True, "format": "pct"
-        },
-        "X10": {
-            "name": "企业订单学生占比", "weight": 4, "unit": "%",
-            "method": "企业订单培养学生数/年度招生总数",
-            "thresholds": {"red": 0.08, "yellow": 0.15, "green": 1.00},
-            "higher_is_better": True, "format": "pct"
-        },
-        "X11": {
-            "name": "双师型专任教师占比", "weight": 3, "unit": "%",
-            "method": "双师型专任教师数/专任教师总数",
-            "thresholds": {"red": 0.50, "yellow": 0.60, "green": 0.70},
-            "higher_is_better": True, "format": "pct"
-        },
-        "X12": {
-            "name": "高级职称专任教师占比", "weight": 3, "unit": "%",
-            "method": "高级职称专任教师数/专任教师总数",
-            "thresholds": {"red": 0.20, "yellow": 0.30, "green": 0.40},
-            "higher_is_better": True, "format": "pct"
-        },
-        "X13": {
-            "name": "高技术技能人才占比", "weight": 3, "unit": "%",
-            "method": "高技术技能人才数/专任教师总数",
-            "thresholds": {"red": 0.30, "yellow": 0.40, "green": 0.50},
-            "higher_is_better": True, "format": "pct"
-        },
-        "X14": {
-            "name": "师均论文数、著作数、课题数", "weight": 3, "unit": "项",
-            "method": "(论文数+著作数+课题数)/专任教师数",
-            "thresholds": {"red": 0.5, "yellow": 1.0, "green": 2.0},
-            "higher_is_better": True, "format": "num"
-        },
-        "X15": {
-            "name": "教师人均企业实践时间", "weight": 3, "unit": "天",
-            "method": "教师企业实践总天数/专任教师数",
-            "thresholds": {"red": 15, "yellow": 20, "green": 30},
-            "higher_is_better": True, "format": "days"
-        }
-    }
-
-
-def load_data_from_xlsx() -> dict:
-    """Load and parse data from the xlsx file.
-
-    Data format from Excel:
-    - X1 (招生计划完成率): stored as decimal like 0.6889, should display as 68.89%
-    - X2 (生师比): stored as ratio like 16.5, should display as 16.5:1
-    - X3-X10: stored as decimals like 0.88, should display as 88%
-    """
-    xlsx_path = Path(r"D:\workspace\huiyi_pro\xingjian\指标、阈值及数据0408.xlsx")
-
-    if not xlsx_path.exists():
-        return load_fallback_data()
-
-    wb = load_workbook(xlsx_path, data_only=True)
-    sheet_names = list(wb.sheetnames)
-
-    # Read major names from Excel sheet names (skip Sheet1 which is threshold sheet)
-    # Use sheet names directly as major names
-    major_names = []
-    for idx in range(1, min(6, len(sheet_names))):
-        sheet_name = sheet_names[idx]
-        # Clean up sheet name if needed
-        major_names.append(sheet_name)
-
-    indicators_meta = build_indicator_meta()
-    # Map Excel column index to indicator ID (X1-X10 only)
-    excel_row_to_ind = {
-        1: "X1", 2: "X2", 3: "X3", 4: "X4", 5: "X5",
-        6: "X6", 7: "X7", 8: "X8", 9: "X9", 10: "X10"
-    }
-
-    years = ["2023-2024学年", "2024-2025学年", "2025-2026学年"]
-
-    majors_data = {}
-
-    # Read each major's data from sheets 1-5 (skip Sheet1 which is thresholds)
-    for idx in range(1, min(6, len(sheet_names))):
-        ws = wb[sheet_names[idx]]
-        rows = list(ws.iter_rows(values_only=True))
-
-        major_id = f"major_{idx-1}"
-        major_name = major_names[idx-1] if idx-1 < len(major_names) else f"专业{idx-1}"
-
-        for i, year in enumerate(years):
-            if year not in majors_data:
-                majors_data[year] = {}
-
-            # Use actual values from xlsx
-            year_data = {}
-
-            # Read rows 1-10 (indices 1-10 in Excel, 0-based in iter_rows)
-            for row_idx in range(1, min(11, len(rows))):
-                row = rows[row_idx]
-                if row and len(row) >= 5 and row[0] is not None:
-                    try:
-                        ind_num = int(row[0])  # Column A = indicator number (1-10)
-                        if ind_num > 10:
-                            continue  # Skip indicators beyond X10
-
-                        ind_id = f"X{ind_num}"
-                        raw_val = row[3] if row[3] is not None else 0  # Column D = raw value
-
-                        # No variation - use actual values from Excel
-                        # If actual data has only one year, trend comparison won't apply
-
-                        year_data[ind_id] = raw_val
-                    except Exception:
-                        pass
-
-            majors_data[year][major_id] = year_data
-
-    # Build metadata using Excel sheet names as major names
-    meta_majors = []
-    for idx, name in enumerate(major_names):
-        meta_majors.append({"id": f"major_{idx}", "name": name, "fullName": name})
-
-    return {
-        "meta": {
-            "school": "信息与机电工程系",
-            "years": years,
-            "indicators": [dict(id=k, **v) for k, v in indicators_meta.items()],
-            "majors": meta_majors
-        },
-        "data": majors_data
-    }
-
-
-def load_fallback_data() -> dict:
-    """Fallback data when xlsx is not available - 10 indicators per user requirements."""
-    indicators_meta = build_indicator_meta()
-    years = ["2023-2024学年", "2024-2025学年", "2025-2026学年"]
-
-    # Data values match Excel format: percentages as decimals (0.88), X2 as ratio (16.5)
-    majors_data = {}
-    for year in years:
-        majors_data[year] = {
-            # X1=招生计划完成率(dec), X2=生师比(ratio), X3=课程优良率(dec), X4=技能证书通过率(dec)
-            # X5=毕业率(dec), X6=就业去向落实率(dec), X7=专业相关度(dec), X8=在校生满意度(dec)
-            # X9=毕业生满意度(dec), X10=企业订单学生占比(dec)
-            "major_0": {"X1": 0.6889, "X2": 18.0, "X3": 0.88, "X4": 0.5143, "X5": 0.96, "X6": 1.0, "X7": 0.71, "X8": 0.945, "X9": 0.8703, "X10": 0.3804},
-            "major_1": {"X1": 0.875, "X2": 16.8, "X3": 0.79, "X4": 0.8333, "X5": 0.93, "X6": 1.0, "X7": 0.58, "X8": 0.891, "X9": 0.9567, "X10": 0.0},
-            "major_2": {"X1": 1.0541, "X2": 17.0, "X3": 0.80, "X4": 0.8846, "X5": 0.91, "X6": 0.9231, "X7": 0.62, "X8": 0.945, "X9": 0.9061, "X10": 0.0},
-            "major_3": {"X1": 1.0658, "X2": 16.5, "X3": 0.82, "X4": 0.4066, "X5": 0.90, "X6": 0.9222, "X7": 0.67, "X8": 0.926, "X9": 0.9394, "X10": 0.0},
-            "major_4": {"X1": 1.0339, "X2": 16.0, "X3": 0.75, "X4": 0.9825, "X5": 0.89, "X6": 0.9473, "X7": 0.70, "X8": 0.863, "X9": 0.9289, "X10": 0.0},
-        }
-
-    return {
-        "meta": {
-            "school": "信息与机电工程系",
-            "years": years,
-            "indicators": [dict(id=k, **v) for k, v in indicators_meta.items()],
-            "majors": [
-                {"id": "major_0", "name": "专业1", "fullName": "专业1"},
-                {"id": "major_1", "name": "专业2", "fullName": "专业2"},
-                {"id": "major_2", "name": "专业3", "fullName": "专业3"},
-                {"id": "major_3", "name": "专业4", "fullName": "专业4"},
-                {"id": "major_4", "name": "专业5", "fullName": "专业5"}
-            ]
-        },
-        "data": majors_data
-    }
-
-
-# Global data cache
-_db_cache = None
-
-def get_db() -> dict:
-    global _db_cache
-    if _db_cache is None:
-        try:
-            _db_cache = load_data_from_xlsx()
-        except Exception as e:
-            _db_cache = load_fallback_data()
-    return _db_cache
-
-
-# ============================================================
-# JWT Helpers
-# ============================================================
-def create_token(data: dict) -> str:
-    expire = datetime.utcnow() + timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)
-    to_encode = data.copy()
-    to_encode.update({"exp": expire})
-    encoded = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded
-
-
-def verify_token(token: str) -> Optional[dict]:
+def get_indicator_meta_db() -> Dict[str, Dict]:
+    """Get indicator metadata from database"""
+    db = SessionLocal()
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return payload
-    except jwt.ExpiredSignatureError:
-        return None
-    except jwt.InvalidTokenError:
-        return None
+        meta = {}
+        for ind in db.query(IndicatorMeta).all():
+            meta[ind.indicator_id] = {
+                "name": ind.name,
+                "weight": ind.weight,
+                "unit": ind.unit,
+                "method": ind.method,
+                "thresholds": {
+                    "red": ind.red_threshold,
+                    "yellow": ind.yellow_threshold,
+                    "green": ind.green_threshold
+                },
+                "higher_is_better": bool(ind.higher_is_better),
+                "format": ind.format
+            }
+        return meta
+    finally:
+        db.close()
 
-
-# ============================================================
-# Auth Models
-# ============================================================
-class LoginRequest(BaseModel):
-    username: str
-    password: str
-
-
-class TokenResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
-    username: str
-
-
-# ============================================================
-# Auth Endpoints
-# ============================================================
-@app.post("/api/auth/login", response_model=TokenResponse)
-async def login(req: LoginRequest):
-    """Login endpoint."""
-    if req.username == "admin" and req.password == "admin123":
-        token = create_token({"sub": req.username, "role": "admin"})
-        return TokenResponse(access_token=token, username=req.username)
-    raise HTTPException(status_code=401, detail="用户名或密码错误")
-
-
-@app.post("/api/auth/logout")
-async def logout():
-    """Logout endpoint (client-side token removal)."""
-    return {"message": "已退出登录"}
-
-
-@app.get("/api/auth/me")
-async def me(token: str = None):
-    """Get current user info."""
-    if not token:
-        raise HTTPException(status_code=401, detail="未登录")
-    payload = verify_token(token)
-    if not payload:
-        raise HTTPException(status_code=401, detail="token已过期")
-    return {"username": payload.get("sub"), "role": payload.get("role")}
-
-
-# ============================================================
-# Data Endpoints (protected)
-# ============================================================
-def get_level_value(val: float, ind_id: str, ind_dict: dict) -> str:
-    """Get warning level for an indicator value.
-
-    Thresholds are now simple numbers representing percentage values (0-100 scale).
-    For 生师比 (X2): lower is better, uses green/yellow/red thresholds directly.
-    For other indicators: higher is better, uses red/yellow/green thresholds.
-    Blue is determined separately by trend comparison, not by threshold.
-    """
-    # ind_dict can be either a single indicator object or a dict of {ind_id: indicator}
-    if "id" in ind_dict:
-        # Single indicator object passed directly
-        ind_meta = ind_dict
-    else:
-        # Dict of indicators passed, look up by ind_id
-        ind_meta = ind_dict.get(ind_id, {})
+def get_level_value(val: float, ind_id: str, ind_meta: Dict) -> str:
+    """Get warning level for an indicator value."""
     thresholds = ind_meta.get("thresholds", {})
-
+    
     if ind_id == "X2":  # 生师比 - lower is better
         green_thresh = thresholds.get("green", 18)
         yellow_thresh = thresholds.get("yellow", 22)
@@ -445,15 +138,12 @@ def get_level_value(val: float, ind_id: str, ind_dict: dict) -> str:
             return "yellow"
         else:
             return "red"
-
-    # For indicators where higher is better:
-    # green = at/above green threshold
-    # yellow = below green but at/above yellow threshold
-    # red = below yellow threshold
+    
+    # For indicators where higher is better
     red_thresh = thresholds.get("red", 0)
     yellow_thresh = thresholds.get("yellow", 0)
     green_thresh = thresholds.get("green", 100)
-
+    
     if val >= green_thresh:
         return "green"
     elif val >= yellow_thresh:
@@ -461,45 +151,168 @@ def get_level_value(val: float, ind_id: str, ind_dict: dict) -> str:
     else:
         return "red"
 
-
 def format_value(val: float, ind_id: str, fmt: str) -> str:
     """Format a value for display."""
     if fmt == "pct":
-        return f"{val*100:.1f}%" if val is not None else "N/A"
+        return f"{val*100:.1f}%"
     elif fmt == "ratio":
-        return f"{val:.1f}" if val is not None else "N/A"
+        return f"{val:.1f}"
     elif fmt == "days":
-        return f"{val:.0f}天" if val is not None else "N/A"
+        return f"{val:.0f}天"
     elif fmt == "num":
-        return f"{val:.2f}" if val is not None else "N/A"
+        return f"{val:.2f}"
     else:
-        return f"{val:.2f}" if val is not None else "N/A"
+        return f"{val:.2f}"
 
+# ============================================================
+# JWT Helpers
+# ============================================================
+def create_token(data: dict) -> str:
+    expire = datetime.utcnow() + timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)
+    to_encode = data.copy()
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+def verify_token(token: str) -> Optional[dict]:
+    try:
+        return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None
+
+# ============================================================
+# Auth Models
+# ============================================================
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    username: str
+
+# ============================================================
+# Auth Endpoints
+# ============================================================
+@app.post("/api/auth/login", response_model=TokenResponse)
+async def login(req: LoginRequest):
+    if req.username == "admin" and req.password == "admin123":
+        token = create_token({"sub": req.username, "role": "admin"})
+        return TokenResponse(access_token=token, username=req.username)
+    raise HTTPException(status_code=401, detail="用户名或密码错误")
+
+@app.post("/api/auth/logout")
+async def logout():
+    return {"message": "已退出登录"}
+
+@app.get("/api/auth/me")
+async def me(token: str = None):
+    if not token:
+        raise HTTPException(status_code=401, detail="未登录")
+    payload = verify_token(token)
+    if not payload:
+        raise HTTPException(status_code=401, detail="token已过期")
+    return {"username": payload.get("sub"), "role": payload.get("role")}
+
+# ============================================================
+# Import Endpoint
+# ============================================================
+@app.post("/api/import")
+async def import_excel(
+    file: UploadFile = File(...),
+    year: str = Form(None)
+):
+    """Upload and import Excel file"""
+    if not file.filename.endswith(('.xlsx', '.xls')):
+        raise HTTPException(status_code=400, detail="只支持 Excel 文件")
+    
+    # Parse year from filename if not provided
+    if not year:
+        year = parse_year_from_filename(file.filename)
+    
+    if not year:
+        raise HTTPException(status_code=400, detail="无法从文件名解析年份，请手动指定")
+    
+    # Save file
+    file_path = EXCEL_DIR / f"{year}_{file.filename}"
+    with open(file_path, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+    
+    # Parse Excel
+    try:
+        wb = load_workbook(file_path, data_only=True)
+        sheet_names = list(wb.sheetnames)
+        
+        # Skip first sheet (thresholds), process remaining as major data
+        majors_data = []
+        
+        for idx in range(1, min(16, len(sheet_names))):
+            ws = wb[sheet_names[idx]]
+            rows = list(ws.iter_rows(values_only=True))
+            
+            major_name = sheet_names[idx]
+            indicators = {}
+            
+            # Read rows 1-15 for indicators
+            for row_idx in range(1, min(16, len(rows))):
+                row = rows[row_idx]
+                if row and len(row) >= 5 and row[0] is not None:
+                    try:
+                        ind_num = int(row[0])
+                        if ind_num > 15:
+                            continue
+                        ind_id = f"X{ind_num}"
+                        raw_val = row[3] if row[3] is not None else 0
+                        indicators[ind_id] = raw_val
+                    except Exception:
+                        pass
+            
+            majors_data.append({
+                "name": major_name,
+                "indicators": indicators
+            })
+        
+        # Import to database
+        success = import_excel_data(year, majors_data)
+        
+        if success:
+            return {"success": True, "message": f"成功导入 {year} 数据，共 {len(majors_data)} 个专业"}
+        else:
+            raise HTTPException(status_code=500, detail="数据导入失败")
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"文件解析错误: {str(e)}")
 
 @app.get("/api/years")
-async def get_years():
-    """Get available years."""
-    db = get_db()
-    years = db["meta"]["years"]
+async def get_available_years():
+    """Get all available years"""
+    years = get_years()
     return {"years": years, "default": years[-1] if years else None}
 
-
+# ============================================================
+# Dashboard Endpoints
+# ============================================================
 @app.get("/api/dashboard")
 async def get_dashboard(year: str = None):
-    """Get dashboard overview - summary + major cards."""
-    db = get_db()
-    meta = db["meta"]
-    years = meta["years"]
+    """Get dashboard overview"""
+    years = get_years()
+    if not years:
+        raise HTTPException(status_code=404, detail="暂无数据，请先导入")
+    
     target_year = year or years[-1]
+    db_data = get_year_data(target_year)
     
-    year_data = db["data"].get(target_year, {})
+    if not db_data:
+        raise HTTPException(status_code=404, detail="年份不存在")
     
-    # Summary counts
-    total_red = 0
-    total_yellow = 0
-    total_blue = 0
-    total_green = 0
+    meta = db_data["meta"]
+    year_data = db_data["data"].get(target_year, {})
+    ind_dict = {ind["id"]: ind for ind in meta["indicators"]}
     
+    # Calculate summary
+    total_red = total_yellow = total_blue = total_green = 0
     majors_list = []
     
     for m in meta["majors"]:
@@ -509,25 +322,10 @@ async def get_dashboard(year: str = None):
         counts = {"red": 0, "yellow": 0, "blue": 0, "green": 0}
         details = {"red": [], "yellow": [], "blue": [], "green": []}
         
-        # Previous year for trend
-        year_idx = years.index(target_year) if target_year in years else len(years) - 1
-        prev_year = years[year_idx - 1] if year_idx > 0 else None
-        prev_data = db["data"].get(prev_year, {}).get(mid, {}) if prev_year else {}
-        
-        # Build indicator lookup dict
-        ind_lookup = {ind["id"]: ind for ind in meta["indicators"]}
-        
         for ind in meta["indicators"]:
             ind_id = ind["id"]
             val = mdata.get(ind_id, 0)
-            level = get_level_value(val, ind_id, ind_lookup)
-            
-            # Blue: normal but negative trend (only if previous year data exists)
-            if level == "green" and prev_year and ind_id in prev_data:
-                prev_val = prev_data.get(ind_id, 0)
-                if prev_val > 0 and val < prev_val:
-                    level = "blue"
-            
+            level = get_level_value(val, ind_id, ind)
             counts[level] += 1
             details[level].append(ind["name"])
         
@@ -536,8 +334,8 @@ async def get_dashboard(year: str = None):
         total_blue += counts["blue"]
         total_green += counts["green"]
         
-        # Calculate overall health score
-        health_score = (counts["green"] * 1.0 + counts["blue"] * 0.8 + counts["yellow"] * 0.5 + counts["red"] * 0) / max(len(meta["indicators"]), 1)
+        health_score = (counts["green"] * 1.0 + counts["blue"] * 0.8 + 
+                       counts["yellow"] * 0.5 + counts["red"] * 0) / max(len(meta["indicators"]), 1)
         
         majors_list.append({
             "id": mid,
@@ -548,10 +346,7 @@ async def get_dashboard(year: str = None):
             "healthScore": round(health_score * 100, 1)
         })
     
-    # Sort by health score
     majors_list.sort(key=lambda x: x["healthScore"], reverse=True)
-    
-    # Rankings
     ranking = [{"id": m["id"], "name": m["name"], "healthScore": m["healthScore"]} for m in majors_list]
     
     return {
@@ -568,16 +363,21 @@ async def get_dashboard(year: str = None):
         "ranking": ranking
     }
 
-
 @app.get("/api/major/{major_id}")
 async def get_major_detail(major_id: str, year: str = None):
-    """Get detailed data for a specific major."""
-    db = get_db()
-    meta = db["meta"]
-    years = meta["years"]
-    target_year = year or years[-1]
+    """Get detailed data for a specific major"""
+    years = get_years()
+    if not years:
+        raise HTTPException(status_code=404, detail="暂无数据")
     
-    year_data = db["data"].get(target_year, {})
+    target_year = year or years[-1]
+    db_data = get_year_data(target_year)
+    
+    if not db_data:
+        raise HTTPException(status_code=404, detail="年份不存在")
+    
+    meta = db_data["meta"]
+    year_data = db_data["data"].get(target_year, {})
     mdata = year_data.get(major_id, {})
     
     major_meta = next((m for m in meta["majors"] if m["id"] == major_id), None)
@@ -587,34 +387,17 @@ async def get_major_detail(major_id: str, year: str = None):
     indicators = []
     ind_dict = {ind["id"]: ind for ind in meta["indicators"]}
     
-    # Previous year data for trend
-    year_idx = years.index(target_year) if target_year in years else len(years) - 1
-    prev_year = years[year_idx - 1] if year_idx > 0 else None
-    prev_data = db["data"].get(prev_year, {}).get(major_id, {}) if prev_year else {}
-    
     for ind in meta["indicators"]:
         ind_id = ind["id"]
         val = mdata.get(ind_id, 0)
-        prev_val = prev_data.get(ind_id, 0) if prev_data else 0
         level = get_level_value(val, ind_id, ind_dict)
-        
-        # Blue detection
-        if level == "green" and prev_val and val < prev_val:
-            level = "blue"
-        
-        # Trend
-        if prev_val and prev_val != 0:
-            change_pct = (val - prev_val) / prev_val * 100
-            trend = "up" if change_pct > 1 else ("down" if change_pct < -1 else "stable")
-        else:
-            trend = "stable"
         
         indicators.append({
             "id": ind_id,
             "name": ind["name"],
             "value": val,
             "level": level,
-            "trend": trend,
+            "trend": "stable",
             "unit": ind.get("unit", ""),
             "format": ind.get("format", "num"),
             "weight": ind.get("weight", 0)
@@ -628,467 +411,155 @@ async def get_major_detail(major_id: str, year: str = None):
         "years": years
     }
 
-
-@app.get("/api/major/{major_id}/trends")
-async def get_major_trends(major_id: str):
-    """Get trend data for a major across all years."""
-    db = get_db()
-    meta = db["meta"]
-    years = meta["years"]
-    
-    major_meta = next((m for m in meta["majors"] if m["id"] == major_id), None)
-    if not major_meta:
-        raise HTTPException(status_code=404, detail="专业不存在")
-    
-    trends = []
-    ind_dict = {ind["id"]: ind for ind in meta["indicators"]}
-    
-    for ind in meta["indicators"]:
-        ind_id = ind["id"]
-        values = []
-        
-        for year in years:
-            year_data = db["data"].get(year, {})
-            mdata = year_data.get(major_id, {})
-            values.append(mdata.get(ind_id, 0))
-        
-        # Calculate trend
-        n = len(values)
-        if n >= 2:
-            x_mean = (n - 1) / 2
-            y_mean = sum(values) / n
-            num = sum((i - x_mean) * (values[i] - y_mean) for i in range(n))
-            den = sum((i - x_mean) ** 2 for i in range(n))
-            slope = num / den if den != 0 else 0
-        else:
-            slope = 0
-        
-        trends.append({
-            "id": ind_id,
-            "name": ind["name"],
-            "values": values,
-            "slope": round(slope, 4),
-            "level": get_level_value(values[-1], ind_id, ind_dict) if values else "green",
-            "format": ind.get("format", "num"),
-            "unit": ind.get("unit", "")
-        })
-    
-    return {"years": years, "trends": trends, "majorName": major_meta["name"]}
-
-
-@app.get("/api/warnings")
-async def get_warnings(year: str = None):
-    """Get all warning items."""
-    db = get_db()
-    meta = db["meta"]
-    years = meta["years"]
-    target_year = year or years[-1]
-    
-    year_data = db["data"].get(target_year, {})
-    ind_dict = {ind["id"]: ind for ind in meta["indicators"]}
-    
-    year_idx = years.index(target_year) if target_year in years else len(years) - 1
-    prev_year = years[year_idx - 1] if year_idx > 0 else None
-    
-    warnings_list = []
-    
-    for m in meta["majors"]:
-        mid = m["id"]
-        mdata = year_data.get(mid, {})
-        prev_data = db["data"].get(prev_year, {}).get(mid, {}) if prev_year else {}
-        
-        for ind in meta["indicators"]:
-            ind_id = ind["id"]
-            val = mdata.get(ind_id, 0)
-            level = get_level_value(val, ind_id, ind_dict)
-
-            if level == "green" and prev_year and ind_id in prev_data:
-                prev_val = prev_data.get(ind_id, 0)
-                if prev_val > 0 and val < prev_val:
-                    level = "blue"
-
-            if level in ("red", "yellow", "blue"):
-                change = None
-                if prev_data and ind_id in prev_data:
-                    change = round(val - prev_data[ind_id], 4)
-                
-                warnings_list.append({
-                    "majorId": mid,
-                    "majorName": m["name"],
-                    "indicatorId": ind_id,
-                    "indicatorName": ind["name"],
-                    "value": val,
-                    "level": level,
-                    "change": change,
-                    "format": ind.get("format", "num"),
-                    "unit": ind.get("unit", "")
-                })
-    
-    # Sort: red first, then yellow, then blue
-    warnings_list.sort(key=lambda x: (0 if x["level"] == "red" else 1 if x["level"] == "yellow" else 2, x["majorName"]))
-    
-    return {"year": target_year, "warnings": warnings_list}
-
-
 @app.get("/api/compare")
 async def get_compare(majors: str = None, year: str = None):
-    """Get radar chart comparison data - uses all 10 indicators."""
-    db = get_db()
-    meta = db["meta"]
-    years = meta["years"]
+    """Get radar chart comparison data"""
+    years = get_years()
+    if not years:
+        raise HTTPException(status_code=404, detail="暂无数据")
+    
     target_year = year or years[-1]
-
+    db_data = get_year_data(target_year)
+    
+    if not db_data:
+        raise HTTPException(status_code=404, detail="年份不存在")
+    
+    meta = db_data["meta"]
+    year_data = db_data["data"].get(target_year, {})
+    ind_dict = {ind["id"]: ind for ind in meta["indicators"]}
+    
     if majors:
         major_ids = majors.split(",")
     else:
         major_ids = [m["id"] for m in meta["majors"]]
-
-    year_data = db["data"].get(target_year, {})
-    ind_dict = {ind["id"]: ind for ind in meta["indicators"]}
-
-    # Use all 15 indicators for radar
-    core_ids = ["X1", "X2", "X3", "X4", "X5", "X6", "X7", "X8", "X9", "X10", "X11", "X12", "X13", "X14", "X15"]
-
+    
+    core_ids = [f"X{i}" for i in range(1, 16)]
+    
     compare_data = []
     for mid in major_ids:
         mdata = year_data.get(mid, {})
         major_meta = next((m for m in meta["majors"] if m["id"] == mid), None)
         name = major_meta["name"] if major_meta else mid
-
-        # Normalize values to 0-100 scale
+        
         scores = []
         for ind_id in core_ids:
             val = mdata.get(ind_id, 0)
             ind = ind_dict.get(ind_id, {})
             fmt = ind.get("format", "num")
-
+            
             if fmt == "pct":
                 score = val * 100
             elif fmt == "ratio":
-                # 生师比: <=18 is best (100), >22 is worst (0)
                 score = max(0, min(100, (22 - val) / (22 - 18) * 100))
             elif fmt == "days":
                 score = min(val / 30 * 100, 100)
             else:
                 score = val * 100
-
+            
             scores.append(round(score, 1))
-
-        compare_data.append({
-            "id": mid,
-            "name": name,
-            "scores": scores
-        })
-
-    # Indicator labels
-    labels = [ind_dict[i]["name"] for i in core_ids]
-
+        
+        compare_data.append({"id": mid, "name": name, "scores": scores})
+    
+    labels = [ind_dict[i]["name"] for i in core_ids if i in ind_dict]
+    
     return {
         "year": target_year,
         "indicators": [{"id": i, "name": n} for i, n in zip(core_ids, labels)],
         "majors": compare_data
     }
 
-
 @app.get("/api/ranking")
 async def get_ranking(year: str = None, indicator: str = None):
-    """Get ranking data.
-
-    Values are normalized:
-    - pct format: returns 0-100 scale percentage
-    - ratio format: returns actual ratio value (e.g., 16.5)
-    """
-    db = get_db()
-    meta = db["meta"]
-    years = meta["years"]
+    """Get ranking data"""
+    years = get_years()
+    if not years:
+        raise HTTPException(status_code=404, detail="暂无数据")
+    
     target_year = year or years[-1]
-
-    year_data = db["data"].get(target_year, {})
-
+    db_data = get_year_data(target_year)
+    
+    if not db_data:
+        raise HTTPException(status_code=404, detail="年份不存在")
+    
+    meta = db_data["meta"]
+    year_data = db_data["data"].get(target_year, {})
+    
     def normalize_value(val, ind_format):
-        """Normalize value for display."""
         if ind_format == "pct":
             return val * 100
         elif ind_format == "ratio":
-            return val  # Keep ratio as-is for display
+            return val
         elif ind_format == "days":
             return val
         else:
             return val * 100
-
+    
     rankings = []
     for m in meta["majors"]:
         mid = m["id"]
         mdata = year_data.get(mid, {})
-
+        
         if indicator:
             val = mdata.get(indicator, 0)
-            # Normalize for comparison
             ind_meta = next((i for i in meta["indicators"] if i["id"] == indicator), None)
             if ind_meta:
                 ind_format = ind_meta.get("format", "pct")
                 val = normalize_value(val, ind_format)
         else:
-            # Overall health score
             counts = {"red": 0, "yellow": 0, "blue": 0, "green": 0}
             ind_dict = {i["id"]: i for i in meta["indicators"]}
             for ind_id, ind in ind_dict.items():
                 val = mdata.get(ind_id, 0)
                 level = get_level_value(val, ind_id, ind)
-                if level == "green":
-                    counts["green"] += 1
-                elif level == "blue":
-                    counts["blue"] += 1
-                elif level == "yellow":
-                    counts["yellow"] += 1
-                else:
-                    counts["red"] += 1
+                counts[level] += 1
             total_indicators = len(meta["indicators"])
-            val = (counts["green"] * 100 + counts["blue"] * 80 + counts["yellow"] * 50 + counts["red"] * 0) / max(total_indicators, 1)
-
-        rankings.append({
-            "id": mid,
-            "name": m["name"],
-            "value": round(val, 2)
-        })
-
-    # Sort: for ratio indicators like 生师比 (higher_is_better=False), lower is better
+            val = (counts["green"] * 100 + counts["blue"] * 80 + 
+                   counts["yellow"] * 50 + counts["red"] * 0) / max(total_indicators, 1)
+        
+        rankings.append({"id": mid, "name": m["name"], "value": round(val, 2)})
+    
+    higher_is_better = True
     if indicator:
         ind_meta = next((i for i in meta["indicators"] if i["id"] == indicator), None)
         higher_is_better = ind_meta.get("higher_is_better", True) if ind_meta else True
-    else:
-        higher_is_better = True  # Overall score: higher is better
+    
     rankings.sort(key=lambda x: x["value"], reverse=higher_is_better)
     for i, r in enumerate(rankings):
         r["rank"] = i + 1
-
-    return {
-        "year": target_year,
-        "indicator": indicator,
-        "rankings": rankings
-    }
-
-
-@app.get("/api/report/{major_id}")
-async def generate_report(major_id: str, year: str = None):
-    """Generate comprehensive diagnostic report for a major."""
-    db = get_db()
-    meta = db["meta"]
-    years = meta["years"]
-    target_year = year or years[-1]
     
-    major_meta = next((m for m in meta["majors"] if m["id"] == major_id), None)
-    if not major_meta:
-        raise HTTPException(status_code=404, detail="专业不存在")
-    
-    year_data = db["data"].get(target_year, {})
-    mdata = year_data.get(major_id, {})
-    
-    year_idx = years.index(target_year) if target_year in years else len(years) - 1
-    prev_year = years[year_idx - 1] if year_idx > 0 else None
-    prev_data = db["data"].get(prev_year, {}).get(major_id, {}) if prev_year else {}
-    
-    ind_dict = {ind["id"]: ind for ind in meta["indicators"]}
-    
-    # Categorize indicators
-    red_items = []
-    yellow_items = []
-    blue_items = []
-    green_items = []
-    
-    for ind in meta["indicators"]:
-        ind_id = ind["id"]
-        val = mdata.get(ind_id, 0)
-        prev_val = prev_data.get(ind_id, 0) if prev_data else 0
-        level = get_level_value(val, ind_id, ind_dict)
-        
-        if level == "green" and prev_val and val < prev_val:
-            level = "blue"
-        
-        change_pct = None
-        if prev_val and prev_val != 0:
-            change_pct = round((val - prev_val) / prev_val * 100, 1)
-        
-        trend = "stable"
-        if prev_val:
-            if change_pct and change_pct > 1:
-                trend = "up"
-            elif change_pct and change_pct < -1:
-                trend = "down"
-        
-        item = {
-            "id": ind_id,
-            "name": ind["name"],
-            "value": val,
-            "prevValue": prev_val,
-            "level": level,
-            "trend": trend,
-            "change": change_pct,
-            "unit": ind.get("unit", ""),
-            "format": ind.get("format", "num")
-        }
-        
-        if level == "red":
-            red_items.append(item)
-        elif level == "yellow":
-            yellow_items.append(item)
-        elif level == "blue":
-            blue_items.append(item)
-        else:
-            green_items.append(item)
-    
-    # Calculate health score
-    total = len(meta["indicators"])
-    health_score = (len(green_items) * 100 + len(blue_items) * 80 + len(yellow_items) * 50 + len(red_items) * 0) / max(total, 1)
-    
-    # Generate report text following the template
-    report_lines = []
-    report_lines.append(f"{'='*50}")
-    report_lines.append(f"【{major_meta['name']}】专业发展智诊报告")
-    report_lines.append(f"生成时间：{datetime.now().strftime('%Y年%m月%d日 %H:%M')}")
-    report_lines.append(f"数据年度：{target_year}")
-    report_lines.append(f"{'='*50}")
-    report_lines.append("")
-    
-    # 一、总体评价
-    report_lines.append("一、总体评价")
-    report_lines.append(f"本专业共监测{len(meta['indicators'])}项核心指标，")
-    report_lines.append(f"其中绿色指标{len(green_items)}项、蓝色关注指标{len(blue_items)}项、")
-    report_lines.append(f"黄色预警指标{len(yellow_items)}项、红色预警指标{len(red_items)}项。")
-    report_lines.append(f"综合健康度得分：{health_score:.1f}分。")
-    
-    if health_score >= 80:
-        report_lines.append("总体评价：优秀。该专业整体发展状况良好，各项指标表现稳定。")
-    elif health_score >= 60:
-        report_lines.append("总体评价：良好。该专业整体发展状况正常，部分指标需持续关注。")
-    elif health_score >= 40:
-        report_lines.append("总体评价：一般。该专业存在一定的预警指标，需要重点改进。")
-    else:
-        report_lines.append("总体评价：较差。该专业多项指标处于预警状态，需紧急干预。")
-    
-    report_lines.append("")
-    
-    # 二、各指标分析
-    report_lines.append("二、各指标分析")
-    
-    # 红色预警指标
-    if red_items:
-        report_lines.append("")
-        report_lines.append("（一）红色预警指标：")
-        for item in red_items:
-            val_str = format_value(item["value"], item["id"], item["format"])
-            report_lines.append(f"  {item['name']}：{val_str}{item['unit']}，趋势{'↑' if item['trend']=='up' else '↓' if item['trend']=='down' else '→'}平稳。")
-            report_lines.append(f"    建议：立即启动专项改进措施，加强该领域的建设与投入。")
-    
-    # 黄色预警指标
-    if yellow_items:
-        report_lines.append("")
-        report_lines.append("（二）黄色预警指标：")
-        for item in yellow_items:
-            val_str = format_value(item["value"], item["id"], item["format"])
-            change_str = f"较上年{abs(item['change']):.1f}%" if item["change"] else ""
-            trend_str = "↑" if item["trend"] == "up" else "↓" if item["trend"] == "down" else "→"
-            report_lines.append(f"  {item['name']}：{val_str}{item['unit']}，{change_str}，趋势{trend_str}。")
-            report_lines.append(f"    建议：密切关注该指标变化趋势，制定针对性改进计划。")
-    
-    # 蓝色关注指标
-    if blue_items:
-        report_lines.append("")
-        report_lines.append("（三）蓝色关注指标（正常但有负向波动）：")
-        for item in blue_items:
-            val_str = format_value(item["value"], item["id"], item["format"])
-            change_str = f"较上年下降{abs(item['change']):.1f}%" if item["change"] and item["change"] < 0 else ""
-            report_lines.append(f"  {item['name']}：{val_str}{item['unit']}，{change_str}。")
-            report_lines.append(f"    建议：分析下降原因，防止指标进一步恶化。")
-    
-    # 绿色指标
-    if green_items:
-        report_lines.append("")
-        report_lines.append("（四）绿色健康指标：")
-        for item in green_items:
-            val_str = format_value(item["value"], item["id"], item["format"])
-            report_lines.append(f"  {item['name']}：{val_str}{item['unit']}，趋势健康。")
-    
-    report_lines.append("")
-    
-    # 三、综合建议
-    report_lines.append("三、综合改进建议")
-    
-    if red_items:
-        report_lines.append("")
-        report_lines.append("1. 紧急改进事项：")
-        for item in red_items[:2]:
-            report_lines.append(f"   · {item['name']}指标严重偏低，需紧急调配资源，制定专项改进方案。")
-    
-    if yellow_items:
-        report_lines.append("")
-        report_lines.append("2. 重点提升事项：")
-        for item in yellow_items[:2]:
-            report_lines.append(f"   · 加强{item['name']}领域的建设，提升该指标的得分水平。")
-    
-    if blue_items:
-        report_lines.append("")
-        report_lines.append("3. 持续关注事项：")
-        for item in blue_items[:2]:
-            report_lines.append(f"   · 保持{item['name']}指标的稳定性，防止出现进一步下滑。")
-    
-    if not red_items and not yellow_items and not blue_items:
-        report_lines.append("")
-        report_lines.append("继续保持当前良好的发展态势，建议：")
-        report_lines.append("  · 巩固现有优势领域，形成专业特色")
-        report_lines.append("  · 持续关注学生就业质量和专业相关度")
-    
-    report_lines.append("")
-    report_lines.append(f"{'='*50}")
-    report_lines.append("报告由专业发展智诊系统自动生成")
-    report_lines.append(f"生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    
-    report_text = "\n".join(report_lines)
-    
-    return {
-        "majorId": major_id,
-        "majorName": major_meta["name"],
-        "year": target_year,
-        "healthScore": round(health_score, 1),
-        "red": red_items,
-        "yellow": yellow_items,
-        "blue": blue_items,
-        "green": green_items,
-        "reportText": report_text
-    }
-
+    return {"year": target_year, "indicator": indicator, "rankings": rankings}
 
 @app.get("/api/indicator/bar")
 async def get_indicator_bar(indicator_id: str = None, year: str = None):
-    """Get bar chart data for a specific indicator across majors.
-
-    Values are normalized to 0-100 scale:
-    - pct format: raw decimal (0.6889) * 100 = 68.89
-    - ratio format: kept as-is (16.5 for 生师比)
-    """
-    db = get_db()
-    meta = db["meta"]
-    years = meta["years"]
+    """Get bar chart data for a specific indicator"""
+    years = get_years()
+    if not years:
+        raise HTTPException(status_code=404, detail="暂无数据")
+    
     target_year = year or years[-1]
-
-    year_data = db["data"].get(target_year, {})
-
+    db_data = get_year_data(target_year)
+    
+    if not db_data:
+        raise HTTPException(status_code=404, detail="年份不存在")
+    
+    meta = db_data["meta"]
+    year_data = db_data["data"].get(target_year, {})
+    
     def normalize_value(val, ind_format):
-        """Normalize value to 0-100 scale for display."""
         if ind_format == "pct":
-            return val * 100  # Convert decimal to percentage
+            return val * 100
         elif ind_format == "ratio":
-            return val  # Keep ratio as-is (e.g., 16.5 for 16.5:1)
+            return val
         elif ind_format == "days":
-            return val  # Keep days as-is
+            return val
         else:
-            return val * 100  # Default: convert decimal to percentage
-
+            return val * 100
+    
     if indicator_id:
         ind_meta = next((i for i in meta["indicators"] if i["id"] == indicator_id), None)
         if not ind_meta:
             raise HTTPException(status_code=404, detail="指标不存在")
-
+        
         ind_format = ind_meta.get("format", "pct")
         data = []
         for m in meta["majors"]:
@@ -1104,8 +575,7 @@ async def get_indicator_bar(indicator_id: str = None, year: str = None):
                 "level": get_level_value(val, indicator_id, {indicator_id: ind_meta}),
                 "format": ind_format
             })
-
-        # Sort based on higher_is_better flag - for ratio indicators like 生师比, lower is better
+        
         reverse_sort = ind_meta.get("higher_is_better", True)
         data.sort(key=lambda x: x["value"], reverse=reverse_sort)
         return {
@@ -1114,7 +584,6 @@ async def get_indicator_bar(indicator_id: str = None, year: str = None):
             "data": data
         }
     else:
-        # Return all indicator bar data
         all_data = {}
         for ind in meta["indicators"]:
             ind_id = ind["id"]
@@ -1134,275 +603,16 @@ async def get_indicator_bar(indicator_id: str = None, year: str = None):
                     "format": ind_format
                 })
             items.sort(key=lambda x: x["value"], reverse=True)
-            all_data[ind_id] = {
-                "name": ind["name"],
-                "format": ind_format,
-                "items": items
-            }
+            all_data[ind_id] = {"name": ind["name"], "format": ind_format, "items": items}
         return {"year": target_year, "data": all_data}
 
-
-@app.get("/api/report/{major_id}/print")
-async def get_report_print(major_id: str, year: str = None, token: str = None):
-    """Get print-friendly HTML report for a major."""
-    # Verify token from query param (for browser opening in new tab)
-    if token:
-        payload = verify_token(token)
-        if not payload:
-            raise HTTPException(status_code=401, detail="token已过期，请重新登录")
-    else:
-        raise HTTPException(status_code=401, detail="未授权")
-    
-    data = await generate_report(major_id, year)
-    
-    # Color map
-    level_colors = {
-        "red": "#ff4d4f",
-        "yellow": "#faad14", 
-        "blue": "#1890ff",
-        "green": "#52c41a"
-    }
-    
-    # Build indicator rows
-    def level_tag(level, name):
-        color = level_colors.get(level, "#999")
-        emoji = {"red": "🔴", "yellow": "🟡", "blue": "🔵", "green": "🟢"}.get(level, "⚪")
-        return f'<span style="background:{color}22;color:{color};padding:2px 8px;border-radius:4px;font-size:12px;margin-right:4px">{emoji} {name}</span>'
-    
-    def format_val(v, fmt, unit=""):
-        if v is None: return "N/A"
-        if fmt == "pct": return f"{v*100:.1f}%{unit}"
-        if fmt == "ratio": return f"{v:.1f}:1"
-        if fmt == "days": return f"{v:.0f}{unit}"
-        return f"{v:.2f}{unit}"
-    
-    # Indicators table rows
-    all_items = data["red"] + data["yellow"] + data["blue"] + data["green"]
-    rows = ""
-    for item in all_items:
-        lvl = item["level"]
-        color = level_colors.get(lvl, "#999")
-        rows += f"""<tr style="border-bottom:1px solid #eee">
-            <td style="padding:8px"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:{color}"></span></td>
-            <td style="padding:8px;font-weight:500">{item['name']}</td>
-            <td style="padding:8px;color:{color};font-weight:600">{format_val(item['value'], item['format'], item['unit'])}</td>
-            <td style="padding:8px">{item['trend'] == 'up' and '↑' or item['trend'] == 'down' and '↓' or '→'} {item['change'] and f"({item['change']:+.1f}%)" or ''}</td>
-            <td style="padding:8px"><span style="background:{color}22;color:{color};padding:2px 8px;border-radius:4px;font-size:12px">
-                {'红色预警' if lvl=='red' else '黄色预警' if lvl=='yellow' else '蓝色关注' if lvl=='blue' else '绿色正常'}
-            </span></td>
-        </tr>"""
-    
-    html = f"""<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<title>专业发展智诊报告 - {data['majorName']}</title>
-<style>
-  @page {{ size: A4; margin: 2cm; @top-center {{ content: '专业发展智诊报告'; font-size: 10px; color: #999; }} @bottom-right {{ content: '第 ' counter(page) ' 页 / 共 ' counter(pages) ' 页'; font-size: 10px; color: #999; }} }}
-  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-  body {{ font-family: 'Microsoft YaHei', 'PingFang SC', 'SimHei', Arial, sans-serif; font-size: 13px; color: #333; line-height: 1.6; }}
-  .header {{ text-align: center; margin-bottom: 24px; border-bottom: 2px solid #1a1a2e; padding-bottom: 16px; }}
-  .header h1 {{ font-size: 22px; color: #1a1a2e; margin-bottom: 8px; }}
-  .header .meta {{ color: #666; font-size: 12px; }}
-  .score-box {{ display: flex; gap: 16px; margin-bottom: 20px; }}
-  .score-card {{ flex: 1; background: #f8f9fa; border-radius: 8px; padding: 16px; text-align: center; }}
-  .score-card .val {{ font-size: 24px; font-weight: 700; }}
-  .score-card .lbl {{ font-size: 12px; color: #666; margin-top: 4px; }}
-  .score-card.red .val {{ color: #ff4d4f; }}
-  .score-card.yellow .val {{ color: #faad14; }}
-  .score-card.blue .val {{ color: #1890ff; }}
-  .score-card.green .val {{ color: #52c41a; }}
-  h2 {{ font-size: 15px; color: #1a1a2e; border-left: 4px solid #1890ff; padding-left: 10px; margin: 20px 0 12px; }}
-  table {{ width: 100%; border-collapse: collapse; margin-bottom: 20px; }}
-  th {{ background: #f0f2f5; padding: 10px 8px; text-align: left; font-size: 12px; color: #666; font-weight: 500; }}
-  .section {{ margin-bottom: 24px; }}
-  .suggestions p {{ margin: 4px 0; }}
-  .footer {{ margin-top: 30px; padding-top: 16px; border-top: 1px solid #eee; font-size: 11px; color: #999; text-align: center; }}
-  @media print {{ body {{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }} }}
-</style>
-</head>
-<body>
-<div class="header">
-  <h1>【{data['majorName']}】专业发展智诊报告</h1>
-  <div class="meta">数据年度：{data['year']} &nbsp;|&nbsp; 生成时间：{datetime.now().strftime('%Y年%m月%d日 %H:%M')}</div>
-</div>
-
-<div class="score-box">
-  <div class="score-card red"><div class="val">{len(data['red'])}</div><div class="lbl">🔴 红色预警</div></div>
-  <div class="score-card yellow"><div class="val">{len(data['yellow'])}</div><div class="lbl">🟡 黄色预警</div></div>
-  <div class="score-card blue"><div class="val">{len(data['blue'])}</div><div class="lbl">🔵 蓝色关注</div></div>
-  <div class="score-card green"><div class="val">{len(data['green'])}</div><div class="lbl">🟢 绿色正常</div></div>
-  <div class="score-card" style="background:#e6f7ff"><div class="val" style="color:#1890ff">{data['healthScore']}</div><div class="lbl">📊 健康度</div></div>
-</div>
-
-<div class="section">
-  <h2>一、预警详情</h2>
-  <table>
-    <thead><tr><th style="width:20px"></th><th>指标名称</th><th>当前值</th><th>变化趋势</th><th>预警级别</th></tr></thead>
-    <tbody>{rows}</tbody>
-  </table>
-</div>
-
-<div class="section suggestions">
-  <h2>二、综合建议</h2>
-  {(len(data['red']) > 0) and ('<p>🔴 <strong>紧急事项：</strong>立即关注红色预警指标：' + ', '.join([i["name"] for i in data["red"]]) + '，需紧急调配资源改进。</p>') or ''}
-  {(len(data['yellow']) > 0) and ('<p>🟡 <strong>重点提升：</strong>改善黄色预警指标：' + ', '.join([i["name"] for i in data["yellow"]]) + '，制定针对性改进计划。</p>') or ''}
-  {(len(data['blue']) > 0) and ('<p>🔵 <strong>持续关注：</strong>保持蓝色关注指标的稳定性：' + ', '.join([i["name"] for i in data["blue"]]) + '，防止进一步下滑。</p>') or ''}
-  {(len(data['red']) == 0 and len(data['yellow']) == 0 and len(data['blue']) == 0) and '<p>🟢 继续保持良好发展态势，巩固现有优势领域，形成专业特色。</p>' or ''}
-</div>
-
-<div class="footer">
-  本报告由专业发展智诊系统自动生成 &nbsp;|&nbsp; {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-</div>
-<script>window.onload = function() {{ window.print(); }}</script>
-</body>
-</html>"""
-    return HTMLResponse(content=html)
-
-
-@app.get("/api/report/{major_id}/pdf")
-async def get_report_pdf(major_id: str, year: str = None, token: str = None):
-    """Generate and download PDF diagnostic report for a major."""
-    if token:
-        payload = verify_token(token)
-        if not payload:
-            raise HTTPException(status_code=401, detail="token已过期，请重新登录")
-    else:
-        raise HTTPException(status_code=401, detail="未授权")
-
-    data = await generate_report(major_id, year)
-    if data is None:
-        raise HTTPException(status_code=404, detail="专业不存在")
-
-    # Build PDF
-    from io import BytesIO
-    buffer = BytesIO()
-    doc = SimpleDocTemplate(
-        buffer, pagesize=A4,
-        leftMargin=2*cm, rightMargin=2*cm,
-        topMargin=2*cm, bottomMargin=2*cm
-    )
-
-    # Styles
-    title_style = ParagraphStyle('title', fontName=PDF_FONT, fontSize=18, leading=24, alignment=TA_CENTER, spaceAfter=6)
-    subtitle_style = ParagraphStyle('subtitle', fontName=PDF_FONT, fontSize=10, leading=14, alignment=TA_CENTER, spaceAfter=4, textColor=colors.grey)
-    section_style = ParagraphStyle('section', fontName=PDF_FONT, fontSize=13, leading=18, spaceBefore=12, spaceAfter=6, textColor=colors.HexColor('#1a1a2e'))
-    body_style = ParagraphStyle('body', fontName=PDF_FONT, fontSize=10, leading=15, spaceAfter=4)
-    red_style = ParagraphStyle('red', fontName=PDF_FONT, fontSize=10, leading=15, spaceAfter=4, textColor=colors.HexColor('#d93636'))
-    yellow_style = ParagraphStyle('yellow', fontName=PDF_FONT, fontSize=10, leading=15, spaceAfter=4, textColor=colors.HexColor('#d9a41a'))
-    blue_style = ParagraphStyle('blue', fontName=PDF_FONT, fontSize=10, leading=15, spaceAfter=4, textColor=colors.HexColor('#155bbc'))
-    green_style = ParagraphStyle('green', fontName=PDF_FONT, fontSize=10, leading=15, spaceAfter=4, textColor=colors.HexColor('#2e8b2e'))
-
-    story = []
-
-    # Title
-    story.append(Paragraph(f"【{data['majorName']}】专业发展智诊报告", title_style))
-    story.append(Paragraph(f"数据年度：{data['year']} &nbsp;|&nbsp; 生成时间：{datetime.now().strftime('%Y年%m月%d日 %H:%M')}", subtitle_style))
-    story.append(HRFlowable(width="100%", thickness=2, color=colors.HexColor('#1a1a2e'), spaceAfter=10))
-
-    # Summary boxes
-    total = len(data['red']) + len(data['yellow']) + len(data['blue']) + len(data['green'])
-    summary_data = [
-        [Paragraph(f"🔴 红色<br/>{len(data['red'])}", red_style),
-         Paragraph(f"🟡 黄色<br/>{len(data['yellow'])}", yellow_style),
-         Paragraph(f"🔵 蓝色<br/>{len(data['blue'])}", blue_style),
-         Paragraph(f"🟢 绿色<br/>{len(data['green'])}", green_style),
-         Paragraph(f"📊 健康度<br/>{data['healthScore']}分", body_style)]
-    ]
-    summary_table = Table(summary_data, colWidths=[3*cm]*5)
-    summary_table.setStyle(TableStyle([
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('FONTSIZE', (0, 0), (-1, -1), 10),
-        ('BACKGROUND', (0, 0), (0, 0), colors.HexColor('#fff0f0')),
-        ('BACKGROUND', (1, 0), (1, 0), colors.HexColor('#fffbe6')),
-        ('BACKGROUND', (2, 0), (2, 0), colors.HexColor('#e6f4ff')),
-        ('BACKGROUND', (3, 0), (3, 0), colors.HexColor('#f0fff0')),
-        ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#dddddd')),
-        ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#dddddd')),
-        ('TOPPADDING', (0, 0), (-1, -1), 8),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-    ]))
-    story.append(summary_table)
-    story.append(Spacer(1, 16))
-
-    # 一、总体评价
-    story.append(Paragraph("一、总体评价", section_style))
-    story.append(Paragraph(f"本专业共监测{total}项核心指标，其中绿色{len(data['green'])}项、蓝色{len(data['blue'])}项、黄色{len(data['yellow'])}项、红色{len(data['red'])}项。综合健康度得分：{data['healthScore']}分。", body_style))
-    if data['healthScore'] >= 80:
-        story.append(Paragraph("总体评价：优秀。该专业整体发展状况良好，各项指标表现稳定。", body_style))
-    elif data['healthScore'] >= 60:
-        story.append(Paragraph("总体评价：良好。该专业整体发展状况正常，部分指标需持续关注。", body_style))
-    elif data['healthScore'] >= 40:
-        story.append(Paragraph("总体评价：一般。该专业存在一定预警指标，需要重点改进。", body_style))
-    else:
-        story.append(Paragraph("总体评价：较差。该专业多项指标处于预警状态，需紧急干预。", body_style))
-
-    # 二、预警指标
-    story.append(Paragraph("二、各指标预警情况", section_style))
-
-    if data['red']:
-        story.append(Paragraph(f"🔴 红色预警指标（{len(data['red'])}项）：", red_style))
-        for item in data['red']:
-            fmt_val = format_value(item['value'], item['id'], item['format'])
-            trend = {'up': '↑', 'down': '↓', 'stable': '→'}.get(item['trend'], '→')
-            story.append(Paragraph(f"  • {item['name']}：{fmt_val}{item['unit']}，趋势{trend}，建议立即改进。", red_style))
-
-    if data['yellow']:
-        story.append(Paragraph(f"🟡 黄色预警指标（{len(data['yellow'])}项）：", yellow_style))
-        for item in data['yellow']:
-            fmt_val = format_value(item['value'], item['id'], item['format'])
-            trend = {'up': '↑', 'down': '↓', 'stable': '→'}.get(item['trend'], '→')
-            story.append(Paragraph(f"  • {item['name']}：{fmt_val}{item['unit']}，趋势{trend}，建议密切关注。", yellow_style))
-
-    if data['blue']:
-        story.append(Paragraph(f"🔵 蓝色关注指标（{len(data['blue'])}项）：", blue_style))
-        for item in data['blue']:
-            fmt_val = format_value(item['value'], item['id'], item['format'])
-            story.append(Paragraph(f"  • {item['name']}：{fmt_val}{item['unit']}，正常但有负向波动，需持续关注。", blue_style))
-
-    if data['green']:
-        story.append(Paragraph(f"🟢 绿色健康指标（{len(data['green'])}项）：", green_style))
-        for item in data['green']:
-            fmt_val = format_value(item['value'], item['id'], item['format'])
-            story.append(Paragraph(f"  • {item['name']}：{fmt_val}{item['unit']}，趋势健康。", green_style))
-
-    # 三、综合建议
-    story.append(Paragraph("三、综合改进建议", section_style))
-    if data['red']:
-        story.append(Paragraph(f"1. 紧急改进：关注红色预警指标（{', '.join([i['name'] for i in data['red']])}），需紧急调配资源制定专项方案。", body_style))
-    if data['yellow']:
-        story.append(Paragraph(f"2. 重点提升：改善黄色预警指标（{', '.join([i['name'] for i in data['yellow']])}），制定针对性改进计划。", body_style))
-    if data['blue']:
-        story.append(Paragraph(f"3. 持续关注：保持蓝色指标（{', '.join([i['name'] for i in data['blue']])}）的稳定性，防止进一步下滑。", body_style))
-    if not data['red'] and not data['yellow'] and not data['blue']:
-        story.append(Paragraph("继续保持良好发展态势，巩固现有优势领域，形成专业特色。", body_style))
-
-    story.append(Spacer(1, 16))
-    story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#dddddd'), spaceAfter=6))
-    story.append(Paragraph(f"本报告由专业发展智诊系统自动生成 | 生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", subtitle_style))
-
-    doc.build(story)
-    pdf_bytes = buffer.getvalue()
-    buffer.close()
-
-    filename = f"专业发展智诊报告_{data['majorName']}_{data['year']}.pdf"
-    import urllib.parse
-    encoded_name = urllib.parse.quote(filename)
-    return Response(content=pdf_bytes, media_type="application/pdf",
-                    headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_name}"})
-
-
-class HTMLResponse(JSONResponse):
-    media_type = "text/html; charset=utf-8"
-
-
+# ============================================================
+# Static Files
+# ============================================================
 @app.get("/")
 async def root():
-    """Serve the frontend HTML."""
     html_file = Path(__file__).parent.parent / "frontend" / "index.html"
     return FileResponse(str(html_file))
-
 
 if __name__ == "__main__":
     import uvicorn

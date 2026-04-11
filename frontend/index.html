@@ -199,6 +199,7 @@
                 <div><h1>专业发展智诊系统</h1><div class="header-sub">信息与机电工程系 · AI赋能专业建设质量监测</div></div>
             </div>
             <div class="header-right">
+                <button class="logout-btn" onclick="showImportModal()" style="margin-right:8px;background:#52c41a;border-color:#52c41a;">📥 导入</button>
                 <select class="year-select" id="yearSelect" onchange="switchYear(this.value)"></select>
                 <div class="user-info">
                     <span>👤 <span id="userDisplay">admin</span></span>
@@ -854,6 +855,88 @@ if (token) {
 document.getElementById('loginPassword').addEventListener('keypress', function(e) {
     if (e.key === 'Enter') doLogin();
 });
+
+// ==================== IMPORT ====================
+function showImportModal() {
+    document.getElementById('importModal').style.display = 'flex';
+}
+
+function hideImportModal() {
+    document.getElementById('importModal').style.display = 'none';
+    document.getElementById('importFile').value = '';
+    document.getElementById('importYear').value = '';
+    document.getElementById('importStatus').textContent = '';
+}
+
+async function doImport() {
+    const fileInput = document.getElementById('importFile');
+    const yearInput = document.getElementById('importYear');
+    const statusEl = document.getElementById('importStatus');
+    
+    if (!fileInput.files.length) {
+        statusEl.textContent = '请选择文件';
+        statusEl.style.color = '#ff4d4f';
+        return;
+    }
+    
+    const file = fileInput.files[0];
+    const formData = new FormData();
+    formData.append('file', file);
+    if (yearInput.value) {
+        formData.append('year', yearInput.value);
+    }
+    
+    statusEl.textContent = '正在上传...';
+    statusEl.style.color = '#1890ff';
+    
+    try {
+        const resp = await fetch('/api/import', {
+            method: 'POST',
+            headers: {
+                'Authorization': 'Bearer ' + token
+            },
+            body: formData
+        });
+        
+        const data = await resp.json();
+        
+        if (resp.ok) {
+            statusEl.textContent = data.message;
+            statusEl.style.color = '#52c41a';
+            setTimeout(() => {
+                hideImportModal();
+                initApp(); // Refresh data
+            }, 1500);
+        } else {
+            statusEl.textContent = data.detail || '导入失败';
+            statusEl.style.color = '#ff4d4f';
+        }
+    } catch(e) {
+        statusEl.textContent = '网络错误: ' + e.message;
+        statusEl.style.color = '#ff4d4f';
+    }
+}
 </script>
+
+<!-- Import Modal -->
+<div id="importModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;">
+    <div style="background:#fff;padding:32px;border-radius:12px;width:400px;max-width:90%;">
+        <h3 style="margin-bottom:20px;font-size:18px;">📥 导入 Excel 数据</h3>
+        <div style="margin-bottom:16px;">
+            <label style="display:block;margin-bottom:8px;font-size:14px;color:#666;">选择文件 (.xlsx)</label>
+            <input type="file" id="importFile" accept=".xlsx,.xls" style="width:100%;padding:8px;border:1px solid #d9d9d9;border-radius:6px;">
+        </div>
+        <div style="margin-bottom:16px;">
+            <label style="display:block;margin-bottom:8px;font-size:14px;color:#666;">学年 (可选，自动从文件名解析)</label>
+            <input type="text" id="importYear" placeholder="例如：2023-2024学年" style="width:100%;padding:10px;border:1px solid #d9d9d9;border-radius:6px;font-size:14px;">
+        </div>
+        <div id="importStatus" style="margin-bottom:16px;font-size:13px;min-height:20px;"></div>
+        <div style="display:flex;gap:12px;justify-content:flex-end;">
+            <button onclick="hideImportModal()" style="padding:8px 16px;border:1px solid #d9d9d9;background:#fff;border-radius:6px;cursor:pointer;">取消</button>
+            <button onclick="doImport()" style="padding:8px 16px;background:#1890ff;color:#fff;border:none;border-radius:6px;cursor:pointer;">导入</button>
+        </div>
+    </div>
+</div>
+
 </body>
 </html>
