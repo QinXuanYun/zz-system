@@ -210,7 +210,6 @@
             <div class="nav-tabs">
                 <div class="nav-tab active" onclick="showSection('overview')">📊 总览</div>
                 <div class="nav-tab" onclick="showSection('warnings')">🚨 预警</div>
-                <div class="nav-tab" onclick="showSection('compare')">📈 对比</div>
                 <div class="nav-tab" onclick="showSection('ranking')">🏆 排行</div>
                 <div class="nav-tab" onclick="showSection('report')">📋 报告</div>
             </div>
@@ -251,18 +250,6 @@
                     <table class="warning-table" id="warningTable"><thead><tr><th>专业</th><th>指标</th><th>当前值</th><th>预警级别</th><th>变化</th></tr></thead><tbody></tbody></table>
                 </div>
                 <div class="card"><div class="card-title">📊 预警分布</div><div class="chart-container" id="warningChart"></div></div>
-            </div>
-            
-            <!-- Compare Section -->
-            <div class="section" id="sec-compare">
-                <div class="card"><div class="card-title">📈 专业对比 （得分）</div>
-                    <div class="compare-checkboxes" id="compareCbs"></div>
-                    <div class="chart-container" id="radarCompare"></div>
-                </div>
-                <div class="card"><div class="card-title">📊 指标横向对比</div>
-                    <div class="tab-bar" id="indicatorTabs"></div>
-                    <div class="chart-container" id="indicatorBar"></div>
-                </div>
             </div>
             
             <!-- Ranking Section -->
@@ -359,9 +346,7 @@ async function api(url, opts = {}) {
 
 // ==================== INIT ====================
 let dashData = null;
-let compareChart = null;
 let warningChart = null;
-let indicatorBarChart = null;
 
 async function initApp() {
     try {
@@ -375,7 +360,6 @@ async function initApp() {
         ).join('');
         
         renderDashboard(dashData);
-        initCompare();
         initRanking();
         initWarnings();
     } catch(e) {
@@ -582,126 +566,6 @@ async function initWarnings() {
     }
 }
 
-// ==================== COMPARE ====================
-let compareMajorIds = [];
-let compareChartInst = null;
-let indicatorBarChartInst = null;
-let indicatorData = null;
-
-async function initCompare() {
-    try {
-        // All majors for compare checkboxes
-        const allMajors = dashData.majors;
-        compareMajorIds = allMajors.slice(0, 3).map(m => m.id); // default first 3
-        
-        const cbs = document.getElementById('compareCbs');
-        cbs.innerHTML = allMajors.map(m => `
-            <div class="compare-cb ${compareMajorIds.includes(m.id) ? 'checked' : ''}" onclick="toggleCompare('${m.id}', this)">
-                ${m.name}
-            </div>
-        `).join('');
-        
-        await renderCompareChart();
-        await initIndicatorTabs();
-    } catch(e) {
-        console.error('Compare init error:', e);
-    }
-}
-
-function toggleCompare(majorId, el) {
-    const idx = compareMajorIds.indexOf(majorId);
-    if (idx >= 0) {
-        compareMajorIds.splice(idx, 1);
-        el.classList.remove('checked');
-    } else {
-        compareMajorIds.push(majorId);
-        el.classList.add('checked');
-    }
-    renderCompareChart();
-}
-
-async function renderCompareChart() {
-    if (compareMajorIds.length === 0) return;
-    
-    const comp = await api(`/api/compare?majors=${compareMajorIds.join(',')}&year=${currentYear}`);
-    
-    if (!compareChartInst) {
-        compareChartInst = echarts.init(document.getElementById('radarCompare'));
-    }
-    
-    const colors = ['#ff6b6b','#1890ff','#52c41a','#faad14','#9c27b0'];
-    
-    compareChartInst.setOption({
-        tooltip: {trigger: 'item'},
-        legend: {top: 0, data: comp.majors.map(m => m.name)},
-        radar: {
-            indicator: comp.indicators.map(i => ({name: i.name, max: 100})),
-            radius: '65%'
-        },
-        series: [{
-            type: 'radar',
-            data: comp.majors.map((m, i) => ({
-                value: m.scores,
-                name: m.name,
-                areaStyle: {opacity: 0.1},
-                itemStyle: {color: colors[i] || colors[0]}
-            }))
-        }]
-    });
-}
-
-async function initIndicatorTabs() {
-    const resp = await api('/api/indicator/bar?year=' + currentYear);
-    indicatorData = resp.data;
-    
-    const tabs = document.getElementById('indicatorTabs');
-    const indIds = Object.keys(indicatorData);
-    tabs.innerHTML = indIds.map((id, i) =>
-        `<button class="tab-btn ${i === 0 ? 'active' : ''}" onclick="switchIndicator('${id}', this)">${indicatorData[id].name}</button>`
-    ).join('');
-    
-    if (indIds.length > 0) {
-        renderIndicatorBar(indIds[0]);
-    }
-}
-
-function switchIndicator(indId, btn) {
-    document.querySelectorAll('#indicatorTabs .tab-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    renderIndicatorBar(indId);
-}
-
-async function renderIndicatorBar(indId) {
-    if (!indicatorData) return;
-
-    const data = indicatorData[indId];
-    if (!indicatorBarChartInst) {
-        indicatorBarChartInst = echarts.init(document.getElementById('indicatorBar'));
-    }
-
-    // API returns normalized values (0-100 for pct, actual value for ratio)
-    const isRatio = data.format === 'ratio';
-    const maxVal = Math.max(...data.items.map(i => i.value), 1);
-    const colors = {red: '#ff4d4f', yellow: '#faad14', blue: '#1890ff', green: '#52c41a'};
-
-    // Calculate average for reference line
-    const avg = data.items.reduce((sum, i) => sum + i.value, 0) / data.items.length;
-
-    indicatorBarChartInst.setOption({
-        tooltip: {trigger: 'axis'},
-        xAxis: {type: 'value', max: isRatio ? undefined : 100},
-        yAxis: {type: 'category', data: data.items.map(i => i.majorName), inverse: true},
-        series: [{
-            type: 'bar',
-            data: data.items.map(i => ({
-                value: i.value.toFixed(1),
-                itemStyle: {color: colors[i.level]}
-            }))
-        }],
-        grid: {top: 10, bottom: 30, left: 120, right: 30}
-    });
-}
-
 // ==================== RANKING ====================
 let rankingByIndicatorData = null;
 let rankingCompareMajorIds = [];
@@ -875,16 +739,18 @@ async function renderReportRadar(data) {
     const chart = echarts.init(document.getElementById('reportRadar'));
     reportRadarChart = chart;
 
-    const indicators = ['X1','X2','X3','X4','X5','X6','X7','X8','X9','X10'];
-    const names = ['报到率','生师比','课程优良率','技能证书通过率','毕业率','就业去向落实率','专业相关度','在校生满意度','毕业生满意度','企业订单学生占比'];
+    const indicators = ['X1','X2','X3','X4','X5','X6','X7','X8','X9','X10','X11','X12','X13','X14','X15'];
+    const names = ['报到率','生师比','课程优良率','技能证书通过率','毕业率','就业去向落实率','专业相关度','在校生满意度','毕业生满意度','企业订单学生占比','双师型专任教师占比','高级职称专任教师占比','高技术技能人才占比','师均论文数、著作数、课题数','教师人均企业实践时间'];
 
-    // Normalize values
+    // Normalize values to 0-100 scale
     const scores = indicators.map((id, i) => {
         const item = [...(data.red||[]),...(data.yellow||[]),...(data.blue||[]),...(data.green||[])].find(it => it.id === id);
         if (!item) return 0;
         const val = item.value;
         if (i === 1) return Math.max(0, Math.min(100, (22-val)/(22-18)*100)); // 生师比
-        return val * 100;
+        if (i === 13) return Math.min(val / 2 * 100, 100); // X14: 师均论文数、著作数、课题数 (max 2)
+        if (i === 14) return Math.min(val / 30 * 100, 100); // X15: 教师人均企业实践时间 (max 30天)
+        return val * 100; // 百分比指标
     });
 
     // Calculate average (excluding X2 ratio)
@@ -961,9 +827,7 @@ function showSection(name) {
     
     // Resize charts
     setTimeout(() => {
-        if (compareChartInst) compareChartInst.resize();
         if (warningChart) warningChart.resize();
-        if (indicatorBarChartInst) indicatorBarChartInst.resize();
         if (reportRadarChart) reportRadarChart.resize();
         if (reportBarChart) reportBarChart.resize();
         if (rankingCompareChartInst) rankingCompareChartInst.resize();

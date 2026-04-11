@@ -182,6 +182,36 @@ def build_indicator_meta() -> dict:
             "method": "企业订单培养学生数/年度招生总数",
             "thresholds": {"red": 0.08, "yellow": 0.15, "green": 1.00},
             "higher_is_better": True, "format": "pct"
+        },
+        "X11": {
+            "name": "双师型专任教师占比", "weight": 3, "unit": "%",
+            "method": "双师型专任教师数/专任教师总数",
+            "thresholds": {"red": 0.50, "yellow": 0.60, "green": 0.70},
+            "higher_is_better": True, "format": "pct"
+        },
+        "X12": {
+            "name": "高级职称专任教师占比", "weight": 3, "unit": "%",
+            "method": "高级职称专任教师数/专任教师总数",
+            "thresholds": {"red": 0.20, "yellow": 0.30, "green": 0.40},
+            "higher_is_better": True, "format": "pct"
+        },
+        "X13": {
+            "name": "高技术技能人才占比", "weight": 3, "unit": "%",
+            "method": "高技术技能人才数/专任教师总数",
+            "thresholds": {"red": 0.30, "yellow": 0.40, "green": 0.50},
+            "higher_is_better": True, "format": "pct"
+        },
+        "X14": {
+            "name": "师均论文数、著作数、课题数", "weight": 3, "unit": "项",
+            "method": "(论文数+著作数+课题数)/专任教师数",
+            "thresholds": {"red": 0.5, "yellow": 1.0, "green": 2.0},
+            "higher_is_better": True, "format": "num"
+        },
+        "X15": {
+            "name": "教师人均企业实践时间", "weight": 3, "unit": "天",
+            "method": "教师企业实践总天数/专任教师数",
+            "thresholds": {"red": 15, "yellow": 20, "green": 30},
+            "higher_is_better": True, "format": "days"
         }
     }
 
@@ -716,8 +746,8 @@ async def get_compare(majors: str = None, year: str = None):
     year_data = db["data"].get(target_year, {})
     ind_dict = {ind["id"]: ind for ind in meta["indicators"]}
 
-    # Use all 10 indicators for radar
-    core_ids = ["X1", "X2", "X3", "X4", "X5", "X6", "X7", "X8", "X9", "X10"]
+    # Use all 15 indicators for radar
+    core_ids = ["X1", "X2", "X3", "X4", "X5", "X6", "X7", "X8", "X9", "X10", "X11", "X12", "X13", "X14", "X15"]
 
     compare_data = []
     for mid in major_ids:
