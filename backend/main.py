@@ -87,17 +87,20 @@ EXCEL_DIR.mkdir(exist_ok=True)
 # ============================================================
 def parse_year_from_filename(filename: str) -> Optional[str]:
     """Parse year from filename like '指标、阈值及数据-2020年.xlsx'"""
-    # Match patterns like: 2020年, 2020-2021, 2020-2021学年
+    # Remove file extension
+    name = filename.rsplit('.', 1)[0] if '.' in filename else filename
+    
+    # Match patterns like: 2020-2021学年, 2020-2021, 2020年, 2020
     patterns = [
-        r'(\d{4})[-\s]*(\d{4})?\s*学年?',
-        r'(\d{4})\s*年',
+        r'(\d{4})\s*[-~]\s*(\d{4})\s*学年?',  # 2020-2021学年 or 2020-2021
+        r'(\d{4})\s*学年?',                    # 2020学年 or 2020年 or 2020
     ]
     
     for pattern in patterns:
-        match = re.search(pattern, filename)
+        match = re.search(pattern, name)
         if match:
             year1 = match.group(1)
-            year2 = match.group(2) if match.group(2) else str(int(year1) + 1)
+            year2 = match.group(2) if len(match.groups()) > 1 and match.group(2) else str(int(year1) + 1)
             return f"{year1}-{year2}学年"
     
     return None
