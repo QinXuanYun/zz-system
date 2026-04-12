@@ -694,7 +694,7 @@ async def get_indicator_bar(indicator_id: str = None, year: str = None):
                 mdata = year_data.get(mid, {})
                 val = mdata.get(ind_id, 0)
                 normalized_val = normalize_value(val, ind_format)
-                    items.append({
+                items.append({
                     "majorId": mid,
                     "majorName": m["name"],
                     "value": normalized_val,
