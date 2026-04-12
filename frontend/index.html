@@ -409,12 +409,15 @@ function renderDashboard(data) {
         const score60 = (indicatorScore * 60 / 100).toFixed(1);
         const scoreColor = indicatorScore >= 80 ? '#52c41a' : indicatorScore >= 60 ? '#faad14' : indicatorScore >= 40 ? '#1890ff' : '#ff4d4f';
         
+        const scoreWidth60 = Math.min(score60, 60) / 60 * 100; // 60分制的进度条宽度
+        
         return `
         <div class="major-card" onclick="showMajorDetail('${m.id}')">
             <div class="major-card-header">
                 <div class="major-card-name">${m.name}</div>
                 <div class="major-card-score">指标得分 <span style="color:${scoreColor}">${score60}（60分制）</span></div>
             </div>
+            <div class="health-bar"><div class="health-bar-fill" style="width:${scoreWidth60}%;background:${scoreColor}"></div></div>
             <div style="margin-top:12px">
                 <div class="badge-row">
                     ${m.counts.green > 0 ? `<span class="badge green"><span class="badge-dot green"></span>${m.counts.green}</span>` : ''}

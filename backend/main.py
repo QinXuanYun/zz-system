@@ -694,7 +694,7 @@ async def get_indicator_bar(indicator_id: str = None, year: str = None):
                 mdata = year_data.get(mid, {})
                 val = mdata.get(ind_id, 0)
                 normalized_val = normalize_value(val, ind_format)
-                items.append({
+                    items.append({
                     "majorId": mid,
                     "majorName": m["name"],
                     "value": normalized_val,
@@ -702,21 +702,23 @@ async def get_indicator_bar(indicator_id: str = None, year: str = None):
                     "level": get_level_value(val, ind_id, {ind_id: ind}),
                     "format": ind_format
                 })
+            
             # Calculate score for each item based on level
-        for item in items:
-            level = item["level"]
-            if level == "green":
-                item["score"] = 100
-            elif level == "blue":
-                item["score"] = 85
-            elif level == "yellow":
-                item["score"] = 60
-            else:  # red
-                item["score"] = 30
+            for item in items:
+                level = item["level"]
+                if level == "green":
+                    item["score"] = 100
+                elif level == "blue":
+                    item["score"] = 85
+                elif level == "yellow":
+                    item["score"] = 60
+                else:  # red
+                    item["score"] = 30
+            
+            # Sort by score descending
+            items.sort(key=lambda x: x["score"], reverse=True)
+            all_data[ind_id] = {"name": ind["name"], "format": ind_format, "items": items}
         
-        # Sort by score descending
-        items.sort(key=lambda x: x["score"], reverse=True)
-        all_data[ind_id] = {"name": ind["name"], "format": ind_format, "items": items}
         return {"year": target_year, "data": all_data}
 
 # ============================================================
