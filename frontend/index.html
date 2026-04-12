@@ -429,16 +429,19 @@ function renderDashboard(data) {
 
 function renderDashboardRanking(ranking) {
     const container = document.getElementById('dashboardRanking');
-    const maxScore = Math.max(...ranking.map(r => r.healthScore), 1);
-    const colors = ['#ff6b6b','#ffa502','#1890ff','#bbb','#bbb'];
+    const maxScore = Math.max(...ranking.map(r => r.score), 1);
+    const barColor = '#5B8FF9'; // 统一的醒目蓝色
     
-    container.innerHTML = ranking.map((r, i) => `
+    // Sort by score descending
+    const sortedRanking = [...ranking].sort((a, b) => b.score - a.score);
+    
+    container.innerHTML = sortedRanking.map((r, i) => `
         <div class="ranking-item">
             <div class="ranking-num r${i+1}">${i+1}</div>
             <div class="ranking-name">${r.name}</div>
             <div class="ranking-bar">
-                <div class="ranking-bar-fill" style="width:${(r.healthScore/maxScore*100).toFixed(0)}%;background:${colors[i]||'#bbb'}">
-                    ${r.healthScore}
+                <div class="ranking-bar-fill" style="width:${(r.score/maxScore*100).toFixed(0)}%;background:${barColor}">
+                    ${r.score}
                 </div>
             </div>
         </div>
@@ -667,16 +670,18 @@ async function renderRankingCompareChart() {
 
 function renderRankingList(containerId, rankings, isRatio) {
     const container = document.getElementById(containerId);
-    const maxVal = Math.max(...rankings.map(r => r.value), 1);
-    const colors = ['#ff6b6b','#ffa502','#1890ff','#bbb','#bbb'];
+    // Sort by score descending (if score exists, otherwise use value)
+    const sortedRankings = [...rankings].sort((a, b) => (b.score || b.value) - (a.score || a.value));
+    const maxVal = Math.max(...sortedRankings.map(r => r.score || r.value), 1);
+    const barColor = '#5B8FF9'; // 统一的醒目蓝色
 
-    container.innerHTML = rankings.map((r, i) => `
+    container.innerHTML = sortedRankings.map((r, i) => `
         <div class="ranking-item">
             <div class="ranking-num r${i+1}">${i+1}</div>
             <div class="ranking-name">${r.name}</div>
             <div class="ranking-bar">
-                <div class="ranking-bar-fill" style="width:${(r.value/maxVal*100).toFixed(0)}%;background:${colors[i]||'#bbb'}">
-                    ${r.value.toFixed(1)}
+                <div class="ranking-bar-fill" style="width:${((r.score || r.value)/maxVal*100).toFixed(0)}%;background:${barColor}">
+                    ${(r.score || r.value).toFixed(1)}
                 </div>
             </div>
         </div>

@@ -68,6 +68,7 @@ class IndicatorMeta(Base):
     method = Column(Text)
     red_threshold = Column(Float)
     yellow_threshold = Column(Float)
+    blue_threshold = Column(Float)
     green_threshold = Column(Float)
     higher_is_better = Column(Integer, default=1)  # 1=True, 0=False
     format = Column(String(20))  # pct, ratio, days, num
@@ -91,91 +92,91 @@ def init_indicator_meta():
             {
                 "indicator_id": "X1", "name": "报到率", "weight": 5, "unit": "%",
                 "method": "(实际录取数/招生计划数)*100%",
-                "red_threshold": 0.85, "yellow_threshold": 0.90, "green_threshold": 0.90,
+                "red_threshold": 0.85, "yellow_threshold": 0.88, "blue_threshold": 0.90, "green_threshold": 0.92,
                 "higher_is_better": 1, "format": "pct"
             },
             {
                 "indicator_id": "X2", "name": "生师比", "weight": 3, "unit": ":1",
                 "method": "折合在校生数/折合教师数",
-                "red_threshold": 18, "yellow_threshold": 22, "green_threshold": 999,
+                "red_threshold": 25, "yellow_threshold": 22, "blue_threshold": 20, "green_threshold": 18,
                 "higher_is_better": 0, "format": "ratio"
             },
             {
                 "indicator_id": "X3", "name": "课程优良率", "weight": 3, "unit": "%",
                 "method": "学生评教'优良'课程比例",
-                "red_threshold": 0.70, "yellow_threshold": 0.85, "green_threshold": 1.00,
+                "red_threshold": 0.70, "yellow_threshold": 0.78, "blue_threshold": 0.85, "green_threshold": 0.90,
                 "higher_is_better": 1, "format": "pct"
             },
             {
                 "indicator_id": "X4", "name": "技能证书通过率", "weight": 4, "unit": "%",
                 "method": "获相关职业资格证书学生比例",
-                "red_threshold": 0.60, "yellow_threshold": 0.75, "green_threshold": 1.00,
+                "red_threshold": 0.60, "yellow_threshold": 0.68, "blue_threshold": 0.75, "green_threshold": 0.85,
                 "higher_is_better": 1, "format": "pct"
             },
             {
                 "indicator_id": "X5", "name": "毕业率", "weight": 3, "unit": "%",
                 "method": "当届毕业生实际毕业比例",
-                "red_threshold": 0.95, "yellow_threshold": 0.97, "green_threshold": 0.97,
+                "red_threshold": 0.95, "yellow_threshold": 0.96, "blue_threshold": 0.97, "green_threshold": 0.98,
                 "higher_is_better": 1, "format": "pct"
             },
             {
                 "indicator_id": "X6", "name": "就业去向落实率", "weight": 5, "unit": "%",
                 "method": "截止当年底的毕业生就业率",
-                "red_threshold": 0.92, "yellow_threshold": 0.96, "green_threshold": 0.96,
+                "red_threshold": 0.92, "yellow_threshold": 0.94, "blue_threshold": 0.96, "green_threshold": 0.98,
                 "higher_is_better": 1, "format": "pct"
             },
             {
                 "indicator_id": "X7", "name": "专业相关度", "weight": 4, "unit": "%",
                 "method": "就业岗位与专业相关毕业生比例",
-                "red_threshold": 0.68, "yellow_threshold": 0.70, "green_threshold": 1.00,
+                "red_threshold": 0.68, "yellow_threshold": 0.69, "blue_threshold": 0.70, "green_threshold": 0.75,
                 "higher_is_better": 1, "format": "pct"
             },
             {
                 "indicator_id": "X8", "name": "在校生满意度", "weight": 4, "unit": "%",
                 "method": "在校生对所学专业的满意度",
-                "red_threshold": 0.91, "yellow_threshold": 0.95, "green_threshold": 1.00,
+                "red_threshold": 0.91, "yellow_threshold": 0.93, "blue_threshold": 0.95, "green_threshold": 0.97,
                 "higher_is_better": 1, "format": "pct"
             },
             {
                 "indicator_id": "X9", "name": "毕业生满意度", "weight": 4, "unit": "%",
                 "method": "毕业生对所学专业的满意度",
-                "red_threshold": 0.92, "yellow_threshold": 0.95, "green_threshold": 1.00,
+                "red_threshold": 0.92, "yellow_threshold": 0.94, "blue_threshold": 0.95, "green_threshold": 0.97,
                 "higher_is_better": 1, "format": "pct"
             },
             {
                 "indicator_id": "X10", "name": "企业订单学生占比", "weight": 4, "unit": "%",
                 "method": "专业接受企业订单且在该企业就业的学生比例",
-                "red_threshold": 0.08, "yellow_threshold": 0.15, "green_threshold": 1.00,
+                "red_threshold": 0.08, "yellow_threshold": 0.11, "blue_threshold": 0.15, "green_threshold": 0.20,
                 "higher_is_better": 1, "format": "pct"
             },
             {
                 "indicator_id": "X11", "name": "双师型专任教师占比", "weight": 3, "unit": "%",
                 "method": "双师型专任教师占专任教师总数的百分比",
-                "red_threshold": 0.60, "yellow_threshold": 0.75, "green_threshold": 0.75,
+                "red_threshold": 0.60, "yellow_threshold": 0.68, "blue_threshold": 0.75, "green_threshold": 0.85,
                 "higher_is_better": 1, "format": "pct"
             },
             {
                 "indicator_id": "X12", "name": "高级职称专任教师占比", "weight": 3, "unit": "%",
                 "method": "高级职称的专任教师占专任教师总数的比例",
-                "red_threshold": 0.15, "yellow_threshold": 0.25, "green_threshold": 0.25,
+                "red_threshold": 0.15, "yellow_threshold": 0.20, "blue_threshold": 0.25, "green_threshold": 0.35,
                 "higher_is_better": 1, "format": "pct"
             },
             {
                 "indicator_id": "X13", "name": "高技术技能人才占比", "weight": 3, "unit": "%",
                 "method": "高技术技能人才占专任教师总数的比例",
-                "red_threshold": 0.05, "yellow_threshold": 0.10, "green_threshold": 1.00,
+                "red_threshold": 0.05, "yellow_threshold": 0.07, "blue_threshold": 0.10, "green_threshold": 0.15,
                 "higher_is_better": 1, "format": "pct"
             },
             {
                 "indicator_id": "X14", "name": "师均论文数、著作数、课题数", "weight": 3, "unit": "项",
                 "method": "论文、著作、课题数与专任教师总数的比值",
-                "red_threshold": 0.5, "yellow_threshold": 1.0, "green_threshold": 2.0,
+                "red_threshold": 0.5, "yellow_threshold": 0.7, "blue_threshold": 1.0, "green_threshold": 1.5,
                 "higher_is_better": 1, "format": "num"
             },
             {
                 "indicator_id": "X15", "name": "教师人均企业实践时间", "weight": 3, "unit": "天",
                 "method": "教师企业实践总天数与专任教师总数的比值",
-                "red_threshold": 18, "yellow_threshold": 30, "green_threshold": 999,
+                "red_threshold": 18, "yellow_threshold": 24, "blue_threshold": 30, "green_threshold": 40,
                 "higher_is_better": 1, "format": "days"
             },
         ]

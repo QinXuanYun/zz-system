@@ -131,6 +131,7 @@ def get_indicator_meta_db() -> Dict[str, Dict]:
 def get_level_value(val: float, ind_id: str, ind_meta: Dict) -> str:
     """Get warning level for an indicator value.
     
+    Four levels: red (danger) < yellow (warning) < blue (attention) < green (good)
     Thresholds in database are stored as decimals (0.85 = 85%).
     Values should already be converted to decimal format during import.
     """
@@ -142,19 +143,28 @@ def get_level_value(val: float, ind_id: str, ind_meta: Dict) -> str:
         val = val / 100.0
     
     if ind_id == "X2":  # 生师比 - lower is better (ratio format)
+        # For X2: lower is better, so order is reversed
+        # red > yellow > blue > green (values)
         green_thresh = thresholds.get("green", 18)
+        blue_thresh = thresholds.get("blue", 20)
         yellow_thresh = thresholds.get("yellow", 22)
+        red_thresh = thresholds.get("red", 25)
+        
         if val <= green_thresh:
             return "green"
+        elif val <= blue_thresh:
+            return "blue"
         elif val <= yellow_thresh:
             return "yellow"
         else:
             return "red"
     
     # For indicators where higher is better
+    # red < yellow < blue < green (values)
     red_thresh = thresholds.get("red", 0)
-    yellow_thresh = thresholds.get("yellow", 0)
-    green_thresh = thresholds.get("green", 1.0 if fmt == "pct" else 100)
+    yellow_thresh = thresholds.get("yellow", 0.5)
+    blue_thresh = thresholds.get("blue", 0.7)
+    green_thresh = thresholds.get("green", 0.9)
     
     # Ensure thresholds are in correct format
     if fmt == "pct":
@@ -162,11 +172,15 @@ def get_level_value(val: float, ind_id: str, ind_meta: Dict) -> str:
             red_thresh = red_thresh / 100.0
         if yellow_thresh > 1:
             yellow_thresh = yellow_thresh / 100.0
+        if blue_thresh > 1:
+            blue_thresh = blue_thresh / 100.0
         if green_thresh > 1:
             green_thresh = green_thresh / 100.0
     
     if val >= green_thresh:
         return "green"
+    elif val >= blue_thresh:
+        return "blue"
     elif val >= yellow_thresh:
         return "yellow"
     else:
@@ -385,17 +399,38 @@ async def get_dashboard(year: str = None):
         health_score = (counts["green"] * 1.0 + counts["blue"] * 0.8 + 
                        counts["yellow"] * 0.5 + counts["red"] * 0) / max(len(meta["indicators"]), 1)
         
+        # Calculate composite score based on indicator weights
+        total_score = 0
+        max_possible_score = 0
+        for ind in meta["indicators"]:
+            ind_id = ind["id"]
+            val = mdata.get(ind_id, 0)
+            level = get_level_value(val, ind_id, ind)
+            weight = ind.get("weight", 1)
+            max_possible_score += weight * 100
+            if level == "green":
+                total_score += weight * 100
+            elif level == "blue":
+                total_score += weight * 85
+            elif level == "yellow":
+                total_score += weight * 60
+            else:  # red
+                total_score += weight * 30
+        
+        composite_score = round(total_score / max(max_possible_score, 1) * 100, 1) if max_possible_score > 0 else 0
+        
         majors_list.append({
             "id": mid,
             "name": m["name"],
             "fullName": m["fullName"],
             "counts": counts,
             "details": details,
-            "healthScore": round(health_score * 100, 1)
+            "healthScore": round(health_score * 100, 1),
+            "score": composite_score
         })
     
-    majors_list.sort(key=lambda x: x["healthScore"], reverse=True)
-    ranking = [{"id": m["id"], "name": m["name"], "healthScore": m["healthScore"]} for m in majors_list]
+    majors_list.sort(key=lambda x: x["score"], reverse=True)
+    ranking = [{"id": m["id"], "name": m["name"], "healthScore": m["healthScore"], "score": m["score"]} for m in majors_list]
     
     return {
         "year": target_year,
@@ -560,11 +595,28 @@ async def get_ranking(year: str = None, indicator: str = None):
                 val = mdata.get(ind_id, 0)
                 level = get_level_value(val, ind_id, ind)
                 counts[level] += 1
-            total_indicators = len(meta["indicators"])
-            val = (counts["green"] * 100 + counts["blue"] * 80 + 
-                   counts["yellow"] * 50 + counts["red"] * 0) / max(total_indicators, 1)
+            
+            # Calculate weighted composite score
+            total_score = 0
+            max_possible_score = 0
+            for ind_id, ind in ind_dict.items():
+                val = mdata.get(ind_id, 0)
+                level = get_level_value(val, ind_id, ind)
+                weight = ind.get("weight", 1)
+                max_possible_score += weight * 100
+                if level == "green":
+                    total_score += weight * 100
+                elif level == "blue":
+                    total_score += weight * 85
+                elif level == "yellow":
+                    total_score += weight * 60
+                else:  # red
+                    total_score += weight * 30
+            
+            composite_score = round(total_score / max(max_possible_score, 1) * 100, 1) if max_possible_score > 0 else 0
+            val = composite_score
         
-        rankings.append({"id": mid, "name": m["name"], "value": round(val, 2)})
+        rankings.append({"id": mid, "name": m["name"], "value": round(val, 2), "score": round(val, 2)})
     
     higher_is_better = True
     if indicator:
@@ -650,8 +702,21 @@ async def get_indicator_bar(indicator_id: str = None, year: str = None):
                     "level": get_level_value(val, ind_id, {ind_id: ind}),
                     "format": ind_format
                 })
-            items.sort(key=lambda x: x["value"], reverse=True)
-            all_data[ind_id] = {"name": ind["name"], "format": ind_format, "items": items}
+            # Calculate score for each item based on level
+        for item in items:
+            level = item["level"]
+            if level == "green":
+                item["score"] = 100
+            elif level == "blue":
+                item["score"] = 85
+            elif level == "yellow":
+                item["score"] = 60
+            else:  # red
+                item["score"] = 30
+        
+        # Sort by score descending
+        items.sort(key=lambda x: x["score"], reverse=True)
+        all_data[ind_id] = {"name": ind["name"], "format": ind_format, "items": items}
         return {"year": target_year, "data": all_data}
 
 # ============================================================
