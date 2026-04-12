@@ -258,9 +258,6 @@
                     <div class="compare-checkboxes" id="rankingCompareCbs"></div>
                     <div class="chart-container" id="rankingRadarCompare"></div>
                 </div>
-                <div class="card"><div class="card-title">🏆 综合排行榜 （得分）</div>
-                    <div class="ranking-list" id="rankingList"></div>
-                </div>
                 <div class="card"><div class="card-title">📊 各指标排行 （得分）</div>
                     <div class="tab-bar" id="rankingTabs"></div>
                     <div class="ranking-list" id="rankingByIndicator"></div>
@@ -403,21 +400,19 @@ function renderDashboard(data) {
     // Major cards
     const grid = document.getElementById('majorsGrid');
     grid.innerHTML = data.majors.map(m => {
-        // 使用score（指标得分）代替healthScore
-        const indicatorScore = m.score !== undefined ? m.score : m.healthScore;
-        // 转换为60分制
-        const score60 = (indicatorScore * 60 / 100).toFixed(1);
-        const scoreColor = indicatorScore >= 80 ? '#52c41a' : indicatorScore >= 60 ? '#faad14' : indicatorScore >= 40 ? '#1890ff' : '#ff4d4f';
+        // 使用score（排行榜得分）
+        const rankingScore = m.score !== undefined ? m.score : m.healthScore;
+        const scoreColor = rankingScore >= 80 ? '#52c41a' : rankingScore >= 60 ? '#faad14' : rankingScore >= 40 ? '#1890ff' : '#ff4d4f';
         
-        const scoreWidth60 = Math.min(score60, 60) / 60 * 100; // 60分制的进度条宽度
+        const scoreWidth = Math.min(rankingScore, 100); // 进度条宽度
         
         return `
         <div class="major-card" onclick="showMajorDetail('${m.id}')">
             <div class="major-card-header">
                 <div class="major-card-name">${m.name}</div>
-                <div class="major-card-score">指标得分 <span style="color:${scoreColor}">${score60}（60分制）</span></div>
+                <div class="major-card-score">健康度：<span style="color:${scoreColor}">${rankingScore.toFixed(1)}</span></div>
             </div>
-            <div class="health-bar"><div class="health-bar-fill" style="width:${scoreWidth60}%;background:${scoreColor}"></div></div>
+            <div class="health-bar"><div class="health-bar-fill" style="width:${scoreWidth}%;background:${scoreColor}"></div></div>
             <div style="margin-top:12px">
                 <div class="badge-row">
                     ${m.counts.green > 0 ? `<span class="badge green"><span class="badge-dot green"></span>${m.counts.green}</span>` : ''}
