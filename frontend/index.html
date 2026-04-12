@@ -125,12 +125,12 @@
         /* Ranking */
         .ranking-list { }
         .ranking-item { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid #f5f5f5; }
-        .ranking-num { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; color: #fff; flex-shrink: 0; }
-        .ranking-num.r1 { background: linear-gradient(135deg, #ff6b6b, #ee5a24); }
-        .ranking-num.r2 { background: linear-gradient(135deg, #ffa502, #e67e22); }
-        .ranking-num.r3 { background: linear-gradient(135deg, #1890ff, #0984e3); }
-        .ranking-num.r4 { background: #bbb; }
-        .ranking-num.r5 { background: #ccc; color: #fff; }
+        .ranking-num { width: 32px; font-size: 16px; font-weight: 700; flex-shrink: 0; text-align: center; font-family: 'Arial', sans-serif; }
+        .ranking-num.r1 { color: #ff4d4f; text-shadow: 0 0 2px rgba(255,77,79,0.3); }
+        .ranking-num.r2 { color: #fa8c16; text-shadow: 0 0 2px rgba(250,140,22,0.3); }
+        .ranking-num.r3 { color: #1890ff; text-shadow: 0 0 2px rgba(24,144,255,0.3); }
+        .ranking-num.r4 { color: #666; }
+        .ranking-num.r5 { color: #999; }
         .ranking-name { flex: 1; font-size: 14px; font-weight: 500; }
         .ranking-bar { flex: 2; height: 20px; background: #f0f0f0; border-radius: 10px; overflow: hidden; position: relative; }
         .ranking-bar-fill { height: 100%; border-radius: 10px; transition: width 0.8s ease; display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; font-size: 11px; color: #fff; font-weight: 600; }
@@ -403,16 +403,18 @@ function renderDashboard(data) {
     // Major cards
     const grid = document.getElementById('majorsGrid');
     grid.innerHTML = data.majors.map(m => {
-        const healthColor = m.healthScore >= 80 ? '#52c41a' : m.healthScore >= 60 ? '#faad14' : m.healthScore >= 40 ? '#1890ff' : '#ff4d4f';
-        const healthWidth = m.healthScore;
+        // 使用score（指标得分）代替healthScore
+        const indicatorScore = m.score !== undefined ? m.score : m.healthScore;
+        // 转换为60分制
+        const score60 = (indicatorScore * 60 / 100).toFixed(1);
+        const scoreColor = indicatorScore >= 80 ? '#52c41a' : indicatorScore >= 60 ? '#faad14' : indicatorScore >= 40 ? '#1890ff' : '#ff4d4f';
         
         return `
         <div class="major-card" onclick="showMajorDetail('${m.id}')">
             <div class="major-card-header">
                 <div class="major-card-name">${m.name}</div>
-                <div class="major-card-score">健康度 <span style="color:${healthColor}">${m.healthScore}</span></div>
+                <div class="major-card-score">指标得分 <span style="color:${scoreColor}">${score60}（60分制）</span></div>
             </div>
-            <div class="health-bar"><div class="health-bar-fill" style="width:${healthWidth}%;background:${healthColor}"></div></div>
             <div style="margin-top:12px">
                 <div class="badge-row">
                     ${m.counts.green > 0 ? `<span class="badge green"><span class="badge-dot green"></span>${m.counts.green}</span>` : ''}
