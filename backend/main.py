@@ -901,6 +901,35 @@ async def generate_report(major_id: str, year: str = None):
     blue_items = []
     green_items = []
     
+    # Calculate average for each indicator across all majors
+    indicator_averages = {}
+    for ind in meta["indicators"]:
+        ind_id = ind["id"]
+        values = []
+        for m in meta["majors"]:
+            mid = m["id"]
+            mdata_all = year_data.get(mid, {})
+            val = mdata_all.get(ind_id, 0)
+            if val is not None:
+                values.append(val)
+        if values:
+            avg_val = sum(values) / len(values)
+            # Convert to score based on level
+            level_avg = get_level_value(avg_val, ind_id, ind_dict)
+            if level_avg == "green":
+                score_avg = 100
+            elif level_avg == "blue":
+                score_avg = 85
+            elif level_avg == "yellow":
+                score_avg = 60
+            else:
+                score_avg = 30
+            indicator_averages[ind_id] = {
+                "value": avg_val,
+                "score": score_avg,
+                "level": level_avg
+            }
+    
     for ind in meta["indicators"]:
         ind_id = ind["id"]
         val = mdata.get(ind_id, 0)
@@ -1035,6 +1064,11 @@ async def generate_report(major_id: str, year: str = None):
     
     report_text = "\n".join(report_lines)
     
+    # Build sorted items list (red -> yellow -> blue -> green)
+    sorted_items = []
+    for item in red_items + yellow_items + blue_items + green_items:
+        sorted_items.append(item)
+    
     return {
         "majorId": major_id,
         "majorName": major_meta["name"],
@@ -1044,6 +1078,8 @@ async def generate_report(major_id: str, year: str = None):
         "yellow": yellow_items,
         "blue": blue_items,
         "green": green_items,
+        "allItems": sorted_items,
+        "indicatorAverages": indicator_averages,
         "reportText": report_text
     }
 
