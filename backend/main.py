@@ -799,6 +799,9 @@ async def get_warnings(year: str = None):
         raise HTTPException(status_code=404, detail="暂无数据")
     
     target_year = year or years[-1]
+    # Sort years chronologically
+    sorted_years = sorted(years)
+    
     db_data = get_year_data(target_year)
     
     if not db_data:
@@ -807,6 +810,15 @@ async def get_warnings(year: str = None):
     meta = db_data["meta"]
     year_data = db_data["data"].get(target_year, {})
     ind_dict = {ind["id"]: ind for ind in meta["indicators"]}
+    
+    # Get previous year data
+    prev_year_data = {}
+    target_year_idx = sorted_years.index(target_year) if target_year in sorted_years else -1
+    if target_year_idx > 0:
+        prev_year = sorted_years[target_year_idx - 1]
+        prev_db_data = get_year_data(prev_year)
+        if prev_db_data and prev_year in prev_db_data["data"]:
+            prev_year_data = prev_db_data["data"][prev_year]
     
     warnings_list = []
     
@@ -820,6 +832,17 @@ async def get_warnings(year: str = None):
             level = get_level_value(val, ind_id, ind_dict)
             
             if level in ("red", "yellow", "blue"):
+                # Calculate change from previous year
+                change_val = None
+                if prev_year_data and mid in prev_year_data and ind_id in prev_year_data[mid]:
+                    prev_val = prev_year_data[mid][ind_id]
+                    if ind.get("format") == "pct" or ind.get("format") == "pct":
+                        # percentage values
+                        change_val = (val - prev_val) * 100  # percentage points change
+                    else:
+                        # absolute change
+                        change_val = val - prev_val
+                
                 warnings_list.append({
                     "majorId": mid,
                     "majorName": m["name"],
@@ -827,7 +850,7 @@ async def get_warnings(year: str = None):
                     "indicatorName": ind["name"],
                     "value": val,
                     "level": level,
-                    "change": None,
+                    "change": change_val,
                     "format": ind.get("format", "num"),
                     "unit": ind.get("unit", "")
                 })
