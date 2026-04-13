@@ -834,13 +834,22 @@ async def get_warnings(year: str = None):
             if level in ("red", "yellow", "blue"):
                 # Calculate change from previous year
                 change_val = None
-                if prev_year_data and mid in prev_year_data and ind_id in prev_year_data[mid]:
+                has_prev_data = prev_year_data and mid in prev_year_data and ind_id in prev_year_data[mid]
+                if has_prev_data:
                     prev_val = prev_year_data[mid][ind_id]
-                    if ind.get("format") == "pct" or ind.get("format") == "pct":
-                        # percentage values
-                        change_val = (val - prev_val) * 100  # percentage points change
+                    fmt = ind.get("format", "pct")
+                    if fmt == "pct":
+                        # For percentage values, show change in percentage points
+                        # Both current and previous values are stored as decimals (e.g., 0.85 for 85%)
+                        change_val = (val - prev_val) * 100  # Convert to percentage points
+                    elif fmt == "ratio":
+                        # For ratio values (like student-teacher ratio), show absolute change
+                        change_val = val - prev_val
+                    elif fmt == "days":
+                        # For days values, show absolute change
+                        change_val = val - prev_val
                     else:
-                        # absolute change
+                        # For other numeric values
                         change_val = val - prev_val
                 
                 warnings_list.append({
@@ -897,10 +906,22 @@ async def generate_report(major_id: str, year: str = None):
         val = mdata.get(ind_id, 0)
         level = get_level_value(val, ind_id, ind_dict)
         
+        # Calculate score based on level
+        score = 0
+        if level == "green":
+            score = 100
+        elif level == "blue":
+            score = 85
+        elif level == "yellow":
+            score = 60
+        else:  # red
+            score = 30
+        
         item = {
             "id": ind_id,
             "name": ind["name"],
             "value": val,
+            "score": score,
             "level": level,
             "trend": "stable",
             "change": None,

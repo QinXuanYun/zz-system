@@ -547,19 +547,25 @@ async function initWarnings() {
             // formatVal already handles :1 suffix for ratio format
             let displayValue = formatVal(w.value, w.format);
             let changeText = '-';
-            if (w.change !== null) {
-                const absChange = Math.abs(w.change).toFixed(1);
-                if (w.change > 0) {
+            console.log('Warning item:', w.majorName, w.indicatorName, 'change:', w.change, 'format:', w.format);
+            if (w.change !== null && w.change !== undefined && !isNaN(w.change)) {
+                const changeVal = parseFloat(w.change);
+                const absChange = Math.abs(changeVal).toFixed(1);
+                if (changeVal > 0) {
                     changeText = `↑ 上升 ${absChange}`;
-                } else if (w.change < 0) {
+                } else if (changeVal < 0) {
                     changeText = `↓ 下降 ${absChange}`;
                 } else {
                     changeText = '→ 不变';
                 }
-                // Add percentage sign for percentage format
+                // Add unit based on format
                 if (w.format === 'pct') {
                     changeText += '%';
+                } else if (w.format === 'days') {
+                    changeText += '天';
                 }
+            } else {
+                changeText = '-（无上年数据）';
             }
             return `
             <tr>
@@ -877,13 +883,17 @@ async function renderReportBar(data) {
     const allItems = [...(data.red||[]),...(data.yellow||[]),...(data.blue||[]),...(data.green||[])];
     const colors = {red: '#ff4d4f', yellow: '#faad14', blue: '#1890ff', green: '#52c41a'};
 
-    // Normalize values and calculate average
+    // Normalize values and calculate average of raw values
     const values = allItems.map(i => i.value * 100);
-    const avg = values.reduce((a, b) => a + b, 0) / values.length;
+    const avgValue = values.reduce((a, b) => a + b, 0) / values.length;
+    
+    // Calculate average score (from level-based scores)
+    const scores = allItems.map(i => i.score || 0);
+    const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
 
     chart.setOption({
         tooltip: {trigger: 'axis'},
-        legend: {data: ['指标得分', '平均值'], top: 0},
+        legend: {data: ['指标得分', '指标得分平均值'], top: 0},
         xAxis: {type: 'category', data: allItems.map(i => i.name), axisLabel: {rotate: 15, interval: 0}},
         yAxis: {type: 'value', max: 100},
         series: [
@@ -898,9 +908,19 @@ async function renderReportBar(data) {
                     silent: true,
                     symbol: 'none',
                     lineStyle: {color: '#ff4d4f', type: 'dashed', width: 2},
-                    data: [{yAxis: avg, name: '平均值'}],
-                    label: {formatter: '平均值: {c}', position: 'end', color: '#ff4d4f'}
+                    data: [{yAxis: avgValue, name: '数值平均值'}],
+                    label: {formatter: '数值平均值: {c}', position: 'end', color: '#ff4d4f'}
                 }
+            },
+            {
+                name: '指标得分平均值',
+                type: 'line',
+                data: allItems.map(() => avgScore.toFixed(1)),
+                lineStyle: {color: '#faad14', type: 'solid', width: 2},
+                itemStyle: {color: '#faad14'},
+                symbol: 'circle',
+                symbolSize: 6,
+                z: 10
             }
         ],
         grid: {top: 40, bottom: 50, left: 60, right: 20}
