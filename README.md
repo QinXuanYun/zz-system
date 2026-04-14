@@ -1,10 +1,10 @@
-# 专业发展智诊系统 (Academic Report)
+# 专业发展智诊系统 (ZZ-System)
 
-> 信息与机电工程系 · AI赋能专业建设质量监测平台
+> 专业发展质量监测与诊断平台
 
 ## 项目简介
 
-专业发展智诊系统是一款面向高职院校专业建设的质量监测与诊断平台，通过数据可视化和AI智能分析，帮助管理部门实时掌握各专业发展状况，及时发现预警指标并生成改进建议。
+专业发展智诊系统是一款面向高职院校专业建设的质量监测与诊断平台，通过数据可视化和智能分析，帮助管理部门实时掌握各专业发展状况，及时发现预警指标并生成改进建议。
 
 ## 功能特性
 
@@ -27,8 +27,8 @@
 - 各指标独立排行
 
 ### 📋 诊断报告
-- AI生成专业发展诊断报告
-- 支持网页打印 / PDF下载
+- 智能生成专业发展诊断报告
+- 精美PDF排版，支持下载
 - 包含总体评价、预警分析、综合建议
 
 ## 技术架构
@@ -38,18 +38,17 @@
 │   └── index.html
 ├── backend/            # 后端 API
 │   ├── main.py         # FastAPI 应用
-│   ├── app.py          # 路由与业务逻辑
-│   └── requirements.txt
-└── data/
-    └── indicators.json # 指标配置与模拟数据
+│   └── database.py     # 数据库模块
+└── fonts/              # 中文字体目录
+    └── .gitkeep
 ```
 
 | 层级 | 技术选型 |
 |------|---------|
 | 前端框架 | 原生 HTML/CSS/JS + ECharts 5.4 |
-| 后端框架 | FastAPI 0.110+ |
-| 数据格式 | JSON（支持 Excel 数据导入） |
-| PDF生成 | ReportLab |
+| 后端框架 | FastAPI 0.135+ |
+| 数据存储 | SQLite 数据库 |
+| PDF生成 | ReportLab + 中文字体 |
 | 认证方式 | JWT (HS256) |
 
 ## 核心指标体系
@@ -58,8 +57,8 @@
 
 | 类别 | 指标 |
 |------|------|
-| 招生就业 | 招生计划完成率、年终就业率、就业去向落实率、专业相关度 |
-| 教学满意 | 课程优良率、校内实训基地满意度、就业单位满意度 |
+| 招生就业 | 报到率、毕业率、就业去向落实率、专业相关度 |
+| 教学满意 | 课程优良率、在校生满意度、毕业生满意度 |
 | 师资队伍 | 生师比、双师型专任教师占比、高级职称专任教师占比、高技术技能人才占比 |
 | 产教融合 | 企业订单学生占比、教师人均企业实践时间 |
 | 科研成果 | 师均论文著作课题数 |
@@ -74,15 +73,18 @@
 
 ```bash
 # 1. 克隆代码
-git clone https://gitee.com/xingjian_1/academic-report.git
-cd academic-report
+git clone https://github.com/QinXuanYun/zz-system.git
+cd zz-system
 
 # 2. 安装后端依赖
 cd backend
-pip install -r requirements.txt
+pip install fastapi uvicorn pydantic openpyxl python-jose[cryptography] pyjwt reportlab
 
-# 3. 启动服务
-python main.py
+# 3. 初始化数据库（首次运行）
+python3 -c "from database import init_db; init_db()"
+
+# 4. 启动服务
+python3 main.py
 ```
 
 ### 访问地址
@@ -96,27 +98,30 @@ python main.py
 ## 目录结构
 
 ```
-academic-report/
+zz-system/
 ├── backend/
 │   ├── main.py              # 应用入口，API 路由注册
-│   ├── app.py               # 核心业务逻辑（数据计算、报告生成、PDF导出）
-│   └── requirements.txt     # Python 依赖
+│   └── database.py          # 数据库模块
 ├── frontend/
 │   └── index.html           # 前端单页应用
+├── fonts/                   # 中文字体目录（用于PDF中文显示）
+│   └── .gitkeep
+├── excel/                   # Excel数据导入目录
 ├── data/
-│   └── indicators.json      # 指标阈值配置与模拟数据
+├── pdf_reports/             # 生成的PDF报告目录
 ├── .gitignore
 └── README.md
 ```
 
-## 数据来源
+## 数据导入
 
-系统支持两种数据加载模式：
+系统支持 Excel 数据导入，支持多专业、多年份数据管理。
 
-1. **Excel 导入模式**（生产环境）：读取 `指标、阈值及数据0408.xlsx`，自动解析多专业多年份数据
-2. **内置模拟数据**（开发/演示模式）：`data/indicators.json` 内置 5 个专业、3 个学年完整模拟数据，开箱即用
-
-如需接入真实数据，请将 Excel 文件放置于 backend 读取路径，并确保表结构符合规范。
+Excel 文件格式要求：
+- 每个专业对应一个工作表
+- 工作表名为专业名称
+- 第一列：指标编号（1-15）
+- 第四列：指标数值
 
 ## API 接口
 
@@ -141,10 +146,30 @@ academic-report/
 | 🔵 蓝色 | 正常但有负向趋势 | 持续监测防止恶化 |
 | 🟢 绿色 | 指标达标且趋势向上 | 保持巩固 |
 
+## 诊断报告格式
+
+### 一、总体评价
+- 专业综合排名
+- 总体评价（优秀/良好/正常/不合格）
+- 健康度得分变化与排名对比
+
+### 二、各指标表现情况
+- 最高分/最低分/未得分指标统计
+- 红色预警指标（对应红色显示）
+- 黄色预警指标（对应黄色显示）
+- 蓝色关注指标（对应蓝色显示）
+- 绿色健康指标（对应绿色显示）
+
+### 三、综合改进建议
+- 寻求突破：红色异常指标
+- 重点提升：黄色预警指标
+- 持续关注：蓝色指标
+- 稳步发展：绿色指标
+
 ## 开源许可
 
-本项目基于 [Mulan PSL-2.0](https://license.coscl.org.cn/MulanPSL2/) 开源许可。
+本项目基于 MIT 开源许可。
 
 ---
 
-📌 **项目地址**：https://gitee.com/xingjian_1/academic-report
+📌 **项目地址**：https://github.com/QinXuanYun/zz-system
