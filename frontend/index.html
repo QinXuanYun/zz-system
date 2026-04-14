@@ -260,7 +260,7 @@
                 </div>
                 <div class="card"><div class="card-title">📊 各指标排行 （得分）</div>
                     <div class="tab-bar" id="rankingTabs"></div>
-                    <div class="ranking-list" id="rankingByIndicator"></div>
+                    <div class="chart-container" id="rankingByIndicator" style="height: 500px;"></div>
                 </div>
             </div>
             
@@ -400,17 +400,17 @@ function renderDashboard(data) {
     // Major cards
     const grid = document.getElementById('majorsGrid');
     grid.innerHTML = data.majors.map(m => {
-        // 使用score（排行榜得分）
-        const rankingScore = m.score !== undefined ? m.score : m.healthScore;
-        const scoreColor = rankingScore >= 80 ? '#52c41a' : rankingScore >= 60 ? '#faad14' : rankingScore >= 40 ? '#1890ff' : '#ff4d4f';
+        // 使用综合排行榜得分
+        const healthScore = m.score !== undefined ? m.score : m.healthScore;
+        const scoreColor = healthScore >= 80 ? '#52c41a' : healthScore >= 60 ? '#faad14' : healthScore >= 40 ? '#1890ff' : '#ff4d4f';
         
-        const scoreWidth = Math.min(rankingScore, 100); // 进度条宽度
+        const scoreWidth = Math.min(healthScore, 100) / 100 * 100; // 100分制的进度条宽度
         
         return `
         <div class="major-card" onclick="showMajorDetail('${m.id}')">
             <div class="major-card-header">
                 <div class="major-card-name">${m.name}</div>
-                <div class="major-card-score">健康度：<span style="color:${scoreColor}">${rankingScore.toFixed(1)}</span></div>
+                <div class="major-card-score">健康度：<span style="color:${scoreColor}">${healthScore.toFixed(1)}</span></div>
             </div>
             <div class="health-bar"><div class="health-bar-fill" style="width:${scoreWidth}%;background:${scoreColor}"></div></div>
             <div style="margin-top:12px">
@@ -546,13 +546,34 @@ async function initWarnings() {
         tbody.innerHTML = data.warnings.map(w => {
             // formatVal already handles :1 suffix for ratio format
             let displayValue = formatVal(w.value, w.format);
+            let changeText = '-';
+            console.log('Warning item:', w.majorName, w.indicatorName, 'change:', w.change, 'format:', w.format);
+            if (w.change !== null && w.change !== undefined && !isNaN(w.change)) {
+                const changeVal = parseFloat(w.change);
+                const absChange = Math.abs(changeVal).toFixed(1);
+                if (changeVal > 0) {
+                    changeText = `↑ 上升 ${absChange}`;
+                } else if (changeVal < 0) {
+                    changeText = `↓ 下降 ${absChange}`;
+                } else {
+                    changeText = '→ 不变';
+                }
+                // Add unit based on format
+                if (w.format === 'pct') {
+                    changeText += '%';
+                } else if (w.format === 'days') {
+                    changeText += '天';
+                }
+            } else {
+                changeText = '-（无上年数据）';
+            }
             return `
             <tr>
                 <td>${w.majorName}</td>
                 <td>${w.indicatorName}</td>
                 <td>${displayValue}</td>
                 <td><span class="level-tag ${w.level}">${w.level === 'red' ? '🔴 红色' : w.level === 'yellow' ? '🟡 黄色' : '🔵 蓝色'}</span></td>
-                <td>${w.change !== null ? (w.change > 0 ? `↑${Math.abs(w.change)}%` : `↓${Math.abs(w.change)}%`) : '-'}</td>
+                <td>${changeText}</td>
             </tr>`;
         }).join('');
         
@@ -583,14 +604,11 @@ async function initWarnings() {
 let rankingByIndicatorData = null;
 let rankingCompareMajorIds = [];
 let rankingCompareChartInst = null;
+let rankingByIndicatorChart = null;
 
 async function initRanking() {
     // Professional comparison chart at top
     await initRankingCompare();
-    
-    // Overall ranking
-    const overall = await api(`/api/ranking?year=${currentYear}`);
-    renderRankingList('rankingList', overall.rankings, false);
     
     // Per-indicator tabs
     const resp = await api('/api/indicator/bar?year=' + currentYear);
@@ -601,6 +619,11 @@ async function initRanking() {
     tabs.innerHTML = indIds.map((id, i) =>
         `<button class="tab-btn ${i === 0 ? 'active' : ''}" onclick="switchRankingIndicator('${id}', this)">${rankingByIndicatorData[id].name}</button>`
     ).join('');
+    
+    // Initialize chart
+    if (!rankingByIndicatorChart) {
+        rankingByIndicatorChart = echarts.init(document.getElementById('rankingByIndicator'));
+    }
     
     if (indIds.length > 0) {
         renderRankingByIndicator(indIds[0]);
@@ -695,12 +718,78 @@ function switchRankingIndicator(indId, btn) {
 }
 
 function renderRankingByIndicator(indId) {
-    if (!rankingByIndicatorData) return;
+    if (!rankingByIndicatorData || !rankingByIndicatorChart) return;
     const data = rankingByIndicatorData[indId];
-    // API returns normalized values, don't multiply by 100 again
-    const items = data.items.map(it => ({...it, value: it.value, name: it.majorName}));
-    const isRatio = data.format === 'ratio';
-    renderRankingList('rankingByIndicator', items, isRatio);
+    
+    // Get sorted data (already sorted by score descending)
+    const items = data.items;
+    
+    // Reverse for horizontal bar chart (display from top to bottom)
+    const reversedItems = [...items].reverse();
+    
+    // Color mapping based on level
+    const colorMap = {
+        'red': '#ff4d4f',
+        'yellow': '#faad14',
+        'blue': '#1890ff',
+        'green': '#52c41a'
+    };
+    
+    const option = {
+        tooltip: {
+            trigger: 'axis',
+            axisPointer: {
+                type: 'shadow'
+            },
+            formatter: function(params) {
+                const item = reversedItems[params[0].dataIndex];
+                const levelText = {
+                    'red': '红色（不正常范围）',
+                    'yellow': '黄色（趋于不正常）',
+                    'blue': '蓝色（较去年下降≥5%）',
+                    'green': '绿色（正常范围）'
+                };
+                return `${item.majorName}<br/>数值: ${item.value.toFixed(1)}<br/>状态: ${levelText[item.level]}`;
+            }
+        },
+        grid: {
+            left: 100,
+            right: 60,
+            top: 20,
+            bottom: 30
+        },
+        xAxis: {
+            type: 'value',
+            name: data.format === 'pct' ? '百分比(%)' : data.format === 'ratio' ? '比值' : '数值',
+            nameLocation: 'end'
+        },
+        yAxis: {
+            type: 'category',
+            data: reversedItems.map(item => item.majorName),
+            axisLabel: {
+                width: 90,
+                overflow: 'truncate'
+            }
+        },
+        series: [{
+            type: 'bar',
+            data: reversedItems.map((item, index) => ({
+                value: item.value,
+                itemStyle: {
+                    color: colorMap[item.level] || '#999'
+                }
+            })),
+            label: {
+                show: true,
+                position: 'right',
+                formatter: '{c}'
+            },
+            animationDuration: 500,
+            animationEasingUpdate: 'quinticInOut'
+        }]
+    };
+    
+    rankingByIndicatorChart.setOption(option, true);
 }
 
 // ==================== REPORT ====================
@@ -791,36 +880,68 @@ async function renderReportBar(data) {
     const chart = echarts.init(document.getElementById('reportBar'));
     reportBarChart = chart;
 
-    const allItems = [...(data.red||[]),...(data.yellow||[]),...(data.blue||[]),...(data.green||[])];
+    // Use allItems from API (already sorted)
+    const allItems = data.allItems || [...(data.red||[]),...(data.yellow||[]),...(data.blue||[]),...(data.green||[])];
     const colors = {red: '#ff4d4f', yellow: '#faad14', blue: '#1890ff', green: '#52c41a'};
-
-    // Normalize values and calculate average
-    const values = allItems.map(i => i.value * 100);
-    const avg = values.reduce((a, b) => a + b, 0) / values.length;
+    
+    // Get indicator averages from API (average for each indicator across all majors)
+    const indicatorAverages = data.indicatorAverages || {};
+    
+    // Build average line data - for each item, get the corresponding indicator's average
+    const avgLineData = allItems.map(item => {
+        const avgInfo = indicatorAverages[item.id];
+        return avgInfo ? avgInfo.score.toFixed(1) : '0';
+    });
+    
+    console.log('Indicator averages:', indicatorAverages);
+    console.log('Average line data:', avgLineData);
 
     chart.setOption({
-        tooltip: {trigger: 'axis'},
-        legend: {data: ['指标得分', '平均值'], top: 0},
+        tooltip: {
+            trigger: 'axis',
+            formatter: function(params) {
+                let result = params[0].name + '<br/>';
+                params.forEach(p => {
+                    if (p.seriesName === '指标数值') {
+                        result += p.marker + ' ' + p.seriesName + ': ' + p.value + '<br/>';
+                    } else if (p.seriesName === '所有专业平均值') {
+                        result += p.marker + ' ' + p.seriesName + ': ' + p.value + '分<br/>';
+                    }
+                });
+                return result;
+            }
+        },
+        legend: {data: ['指标数值', '所有专业平均值'], top: 0},
         xAxis: {type: 'category', data: allItems.map(i => i.name), axisLabel: {rotate: 15, interval: 0}},
-        yAxis: {type: 'value', max: 100},
+        yAxis: {type: 'value', max: 100, name: '数值/分数'},
         series: [
             {
-                name: '指标得分',
+                name: '指标数值',
                 type: 'bar',
                 data: allItems.map(i => ({
                     value: (i.value * 100).toFixed(1),
                     itemStyle: {color: colors[i.level]}
-                })),
-                markLine: {
-                    silent: true,
-                    symbol: 'none',
-                    lineStyle: {color: '#ff4d4f', type: 'dashed', width: 2},
-                    data: [{yAxis: avg, name: '平均值'}],
-                    label: {formatter: '平均值: {c}', position: 'end', color: '#ff4d4f'}
+                }))
+            },
+            {
+                name: '所有专业平均值',
+                type: 'line',
+                data: avgLineData,
+                lineStyle: {color: '#faad14', type: 'solid', width: 3},
+                itemStyle: {color: '#faad14'},
+                symbol: 'circle',
+                symbolSize: 8,
+                z: 10,
+                label: {
+                    show: true,
+                    position: 'top',
+                    formatter: '{c}',
+                    fontSize: 10,
+                    color: '#faad14'
                 }
             }
         ],
-        grid: {top: 40, bottom: 50, left: 60, right: 20}
+        grid: {top: 50, bottom: 60, left: 70, right: 30}
     });
 }
 
@@ -846,6 +967,7 @@ function showSection(name) {
         if (reportRadarChart) reportRadarChart.resize();
         if (reportBarChart) reportBarChart.resize();
         if (rankingCompareChartInst) rankingCompareChartInst.resize();
+        if (rankingByIndicatorChart) rankingByIndicatorChart.resize();
     }, 100);
 }
 
