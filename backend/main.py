@@ -1173,7 +1173,7 @@ async def generate_report(major_id: str, year: str = None):
         if current_val is None or current_val == 0:
             zero_count += 1
     
-    report_lines.append(f" {major_meta['name']} 共有{max_count}个指标在各专业中取得了最高分，共有{min_count}个指标在各专业中取得了最低分，共有{zero_count}个指标未得分。")
+    report_lines.append(f" {major_meta['name']} 共有 {max_count} 个指标在各专业中取得了最高分，共有 {min_count} 个指标在各专业中取得了最低分，共有 {zero_count} 个指标未得分。")
     report_lines.append("")
     
     # 红色预警指标
@@ -1400,6 +1400,7 @@ async def download_report_pdf(major_id: str, year: str = None, token: str = None
     in_section = None  # 'red', 'yellow', 'blue', 'green'
     
     for line in report_lines:
+        original_line = line
         line = line.strip()
         if not line:
             story.append(Spacer(1, 0.3*cm))
@@ -1448,13 +1449,27 @@ async def download_report_pdf(major_id: str, year: str = None, token: str = None
             if in_section:  # in indicators section, use ordered list
                 current_list_num += 1
                 content = line[2:]  # remove leading "• "
-                story.append(Paragraph(f"{current_list_num}. {content}", bullet_style))
+                blue_style = ParagraphStyle(
+                    'BulletBlue',
+                    parent=bullet_style,
+                    textColor=colors.HexColor('#1890ff')
+                )
+                story.append(Paragraph(f"{current_list_num}. {content}", blue_style))
             else:
                 story.append(Paragraph(line, bullet_style))
         elif line.startswith('1. ') or line.startswith('2.') or line.startswith('3.') or line.startswith('4.'):
             story.append(Paragraph(line, normal_style))
         else:
-            story.append(Paragraph(line, normal_style))
+            # Check if line had leading space (for indicator summary lines)
+            if original_line.startswith(' '):
+                indented_style = ParagraphStyle(
+                    'Indented',
+                    parent=normal_style,
+                    leftIndent=10
+                )
+                story.append(Paragraph(line, indented_style))
+            else:
+                story.append(Paragraph(line, normal_style))
     
     # Add footer - horizontal line and centered generation time
     story.append(Spacer(1, 1*cm))
