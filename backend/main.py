@@ -1193,7 +1193,7 @@ async def generate_report(major_id: str, year: str = None):
         for item in yellow_items:
             val_str = format_value(item["value"], item["id"], item["format"])
             report_lines.append(f"• {item['name']}：{val_str}，如未加以关注，数据将下滑至异常范围，建议密切关注。")
-    report_lines.append(f" 本专业在学生满意度方面表现不佳，需树立全局意识，统筹发展；认清自身不足，深化改革，取长补短，改善现状。")
+    report_lines.append(f" 本专业在{', '.join([item['name'] for item in yellow_items[:3]]) if yellow_items else '暂无'}方面表现不佳，需树立全局意识，统筹发展；认清自身不足，深化改革，取长补短，改善现状。")
     report_lines.append("")
     
     # 蓝色关注指标
@@ -1203,7 +1203,7 @@ async def generate_report(major_id: str, year: str = None):
         for item in blue_items:
             val_str = format_value(item["value"], item["id"], item["format"])
             report_lines.append(f"• {item['name']}：{val_str}，正常但有负向波动，需分析波动原因，避免持续走低。")
-    report_lines.append(f" 本专业在社会吸引力、学生考取技能证书和学生专业认可度方面表现优异，但较上一学年呈现下降趋势，需及时分析下降原因，保持平稳发展趋势。")
+    report_lines.append(f" 本专业在{', '.join([item['name'] for item in blue_items[:3]]) if blue_items else '暂无'}方面表现优异，但较上一学年呈现下降趋势，需及时分析下降原因，保持平稳发展趋势。")
     report_lines.append("")
     
     # 绿色健康指标
@@ -1213,7 +1213,7 @@ async def generate_report(major_id: str, year: str = None):
         for item in green_items:
             val_str = format_value(item["value"], item["id"], item["format"])
             report_lines.append(f"• {item['name']}：{val_str}，趋势健康。")
-    report_lines.append(f" 本专业在生师配比、课程教学效果、学生毕业就业和产教融合方面表现优异，需继续保持。")
+    report_lines.append(f" 本专业在{', '.join([item['name'] for item in green_items[:3]]) if green_items else '暂无'}方面表现优异，需继续保持。")
     report_lines.append("")
     
     # 三、综合改进建议
