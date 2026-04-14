@@ -1293,7 +1293,6 @@ async def download_report_pdf(major_id: str, year: str = None, token: str = None
     
     # Get report data
     report_data = await generate_report(major_id, target_year)
-    report_text = report_data["reportText"]
     
     # Create PDF
     output_dir = Path(__file__).parent.parent / "pdf_reports"
@@ -1307,55 +1306,136 @@ async def download_report_pdf(major_id: str, year: str = None, token: str = None
                             topMargin=2*cm, bottomMargin=2*cm)
     
     styles = getSampleStyleSheet()
-    # Create Chinese paragraph style
+    
+    # Define styles
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        fontName=PDF_FONT,
+        fontSize=18,
+        leading=24,
+        spaceBefore=0,
+        spaceAfter=12,
+        alignment=TA_CENTER,
+        textColor=colors.HexColor('#1a1a2e')
+    )
+    
+    subtitle_style = ParagraphStyle(
+        'CustomSubtitle',
+        fontName=PDF_FONT,
+        fontSize=12,
+        leading=18,
+        spaceBefore=0,
+        spaceAfter=18,
+        alignment=TA_CENTER,
+        textColor=colors.HexColor('#666666')
+    )
+    
+    section_style = ParagraphStyle(
+        'CustomSection',
+        fontName=PDF_FONT,
+        fontSize=14,
+        leading=20,
+        spaceBefore=16,
+        spaceAfter=10,
+        textColor=colors.HexColor('#1890ff'),
+        leftIndent=0
+    )
+    
     normal_style = ParagraphStyle(
-        'Normal',
-        parent=styles['Normal'],
+        'CustomNormal',
         fontName=PDF_FONT,
         fontSize=11,
         leading=18,
         spaceBefore=6,
-        spaceAfter=6
+        spaceAfter=6,
+        leftIndent=0
     )
     
-    title_style = ParagraphStyle(
-        'Title',
-        parent=styles['Title'],
-        fontName=PDF_FONT,
-        fontSize=16,
-        leading=22,
-        spaceBefore=12,
-        spaceAfter=12,
-        alignment=TA_CENTER
-    )
-    
-    heading_style = ParagraphStyle(
-        'Heading',
-        parent=styles['Heading2'],
-        fontName=PDF_FONT,
-        fontSize=13,
-        leading=18,
-        spaceBefore=12,
-        spaceAfter=8
+    bullet_style = ParagraphStyle(
+        'CustomBullet',
+        parent=normal_style,
+        leftIndent=16,
+        firstLineIndent=-16
     )
     
     story = []
     
-    # Add title
-    story.append(Paragraph(f"{major_meta['name']} 专业发展诊断报告", title_style))
-    story.append(Paragraph(f"数据年度：{target_year}", normal_style))
-    story.append(Spacer(1, 0.5*cm))
+    # Title section
+    story.append(Paragraph(f"【{major_meta['name']}】专业发展诊断报告", title_style))
+    story.append(Paragraph(f"数据年度：{target_year} &nbsp;&nbsp; | &nbsp;&nbsp; 生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", subtitle_style))
+    story.append(HRFlowable(width='100%', thickness=1, color=colors.HexColor('#e0e0e0')))
+    story.append(Spacer(1, 0.4*cm))
     
-    # Add report text (parse line by line)
-    for line in report_text.split('\n'):
+    # Status table
+    red_count = len(report_data.get('red', []))
+    yellow_count = len(report_data.get('yellow', []))
+    blue_count = len(report_data.get('blue', []))
+    green_count = len(report_data.get('green', []))
+    health_score = report_data.get('healthScore', 0)
+    
+    table_data = [
+        ['🔴 红色', '🟡 黄色', '🔵 蓝色', '🟢 绿色', '健康度'],
+        [str(red_count), str(yellow_count), str(blue_count), str(green_count), f"{health_score:.1f}"]
+    ]
+    
+    table = Table(table_data, colWidths=[2.5*cm, 2.5*cm, 2.5*cm, 2.5*cm, 3.5*cm], rowHeights=[0.8*cm, 0.8*cm])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, 0), colors.HexColor('#fff1f0')),
+        ('BACKGROUND', (1, 0), (1, 0), colors.HexColor('#fffbe6')),
+        ('BACKGROUND', (2, 0), (2, 0), colors.HexColor('#e6f7ff')),
+        ('BACKGROUND', (3, 0), (3, 0), colors.HexColor('#f6ffed')),
+        ('BACKGROUND', (4, 0), (4, 0), colors.HexColor('#f0f2f5')),
+        ('FONT', (0, 0), (-1, -1), PDF_FONT, 11),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#d9d9d9')),
+        ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#1890ff'))
+    ]))
+    story.append(table)
+    story.append(Spacer(1, 0.6*cm))
+    
+    # Process report text and create nicer content
+    report_lines = report_data['reportText'].split('\n')
+    
+    for line in report_lines:
         line = line.strip()
         if not line:
             story.append(Spacer(1, 0.3*cm))
             continue
+            
+        # Skip the old header content since we already added it
+        if line.startswith('【') and '专业发展智诊报告' in line:
+            continue
+        if line.startswith('数据年度：') and '生成时间：' in line:
+            continue
+        if all(c == '-' for c in line if c):
+            continue
+        if line.startswith('[红:') and '健康度:' in line:
+            continue
+        if all(c == '=' for c in line if c):
+            continue
+        if line.startswith('报告由专业发展智诊系统自动生成'):
+            continue
         
-        # Check if it's a heading
-        if line.startswith('一、') or line.startswith('二、') or line.startswith('三、'):
-            story.append(Paragraph(line.replace('一、', '').replace('二、', '').replace('三、', ''), heading_style))
+        # Section headings
+        if line.startswith('一、'):
+            story.append(Paragraph('一、总体评价', section_style))
+        elif line.startswith('二、'):
+            story.append(Paragraph('二、各指标表现情况', section_style))
+        elif line.startswith('三、'):
+            story.append(Paragraph('三、综合改进建议', section_style))
+        elif line.startswith('红色预警指标（'):
+            story.append(Paragraph(line, normal_style))
+        elif line.startswith('黄色预警指标（'):
+            story.append(Paragraph(line, normal_style))
+        elif line.startswith('蓝色关注指标（'):
+            story.append(Paragraph(line, normal_style))
+        elif line.startswith('绿色健康指标（'):
+            story.append(Paragraph(line, normal_style))
+        elif line.startswith('• '):
+            story.append(Paragraph(line, bullet_style))
+        elif line.startswith('1. ') or line.startswith('2.') or line.startswith('3.') or line.startswith('4.'):
+            story.append(Paragraph(line, normal_style))
         else:
             story.append(Paragraph(line, normal_style))
     
