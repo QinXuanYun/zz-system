@@ -1221,19 +1221,19 @@ async def generate_report(major_id: str, year: str = None):
     
     if red_items:
         red_names = ', '.join([item['name'] for item in red_items[:3]])
-        report_lines.append(f"1. 寻求突破：提升红色异常指标{red_names}，分析原因，精准突破；借鉴其他专业宝贵经验，明确特色化发展路径。")
+        report_lines.append(f"1. 寻求突破：提升红色异常指标 {red_names}，分析原因，精准突破；借鉴其他专业宝贵经验，明确特色化发展路径。")
     
     if yellow_items:
         yellow_names = ', '.join([item['name'] for item in yellow_items[:3]])
-        report_lines.append(f"2.重点提升：改善黄色预警指标{yellow_names}，制定针对性改进计划，避免现状恶化。")
+        report_lines.append(f"2.重点提升：改善黄色预警指标 {yellow_names}，制定针对性改进计划，避免现状恶化。")
     
     if blue_items:
         blue_names = ', '.join([item['name'] for item in blue_items[:3]])
-        report_lines.append(f"3. 持续关注：保持蓝色指标{blue_names}的稳定性，防止进一步下滑。")
+        report_lines.append(f"3. 持续关注：保持蓝色指标 {blue_names}的稳定性，防止进一步下滑。")
     
     if green_items:
         green_names = ', '.join([item['name'] for item in green_items[:3]])
-        report_lines.append(f"4.稳步发展：增强绿色指标{green_names}的稳定性，及时总结建设经验并迁移至其他指标，实现本专业全面统筹发展。")
+        report_lines.append(f"4.稳步发展：增强绿色指标 {green_names}的稳定性，及时总结建设经验并迁移至其他指标，实现本专业全面统筹发展。")
     
     report_lines.append("")
     report_lines.append(f"{'='*50}")
@@ -1449,12 +1449,20 @@ async def download_report_pdf(major_id: str, year: str = None, token: str = None
             if in_section:  # in indicators section, use ordered list
                 current_list_num += 1
                 content = line[2:]  # remove leading "• "
-                blue_style = ParagraphStyle(
-                    'BulletBlue',
+                # 按预警类型设置颜色
+                bullet_color = colors.HexColor('#ff4d4f')  # red default
+                if in_section == 'yellow':
+                    bullet_color = colors.HexColor('#faad14')
+                elif in_section == 'blue':
+                    bullet_color = colors.HexColor('#1890ff')
+                elif in_section == 'green':
+                    bullet_color = colors.HexColor('#52c41a')
+                colored_style = ParagraphStyle(
+                    f'Bullet{in_section}',
                     parent=bullet_style,
-                    textColor=colors.HexColor('#1890ff')
+                    textColor=bullet_color
                 )
-                story.append(Paragraph(f"{current_list_num}. {content}", blue_style))
+                story.append(Paragraph(f"{current_list_num}. {content}", colored_style))
             else:
                 story.append(Paragraph(line, bullet_style))
         elif line.startswith('1. ') or line.startswith('2.') or line.startswith('3.') or line.startswith('4.'):
