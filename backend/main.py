@@ -990,14 +990,17 @@ async def generate_report(major_id: str, year: str = None):
     
     # Generate report text - NEW FORMAT
     report_lines = []
-    report_lines.append(f"{'='*50}")
+    
+    # 标题部分
     report_lines.append(f"【{major_meta['name']}】专业发展智诊报告")
-    report_lines.append(f"生成时间：{datetime.now().strftime('%Y年%m月%d日 %H:%M')}")
-    report_lines.append(f"数据年度：{target_year}")
-    report_lines.append(f"{'='*50}")
+    report_lines.append(f"数据年度：{target_year} | 生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    report_lines.append(f"{'-'*50}")
+    
+    # 预警数量表格
+    report_lines.append(f"[红:{len(red_items)}] [黄:{len(yellow_items)}] [蓝:{len(blue_items)}] [绿:{len(green_items)}] 健康度:{health_score:.1f}")
     report_lines.append("")
     
-    # 一、总体评价 - 新增排名和健康度变化
+    # 一、总体评价
     report_lines.append("一、总体评价")
     report_lines.append(f"本专业共监测{len(meta['indicators'])}项核心指标，")
     report_lines.append(f"其中绿色指标{len(green_items)}项、蓝色关注指标{len(blue_items)}项、")
@@ -1120,8 +1123,8 @@ async def generate_report(major_id: str, year: str = None):
                 rank_change_text = "排名不变"
     
     # 输出新增段落
-    report_lines.append(f"专业综合排名在第{rank}名（共{total_majors}个专业）。")
-    report_lines.append(f"总体评价：{evaluation}。该专业整体发展状况{development_status}，各项指标表现{stability}。")
+    report_lines.append(f"专业综合排名在第{rank}名。")
+    report_lines.append(f"该专业整体发展状况{development_status}，各项指标表现{stability}。")
     
     if score_change_text and rank_change_text:
         report_lines.append(f"本专业较上一学年综合健康度得分{score_change_text}，排名{rank_change_text}。")

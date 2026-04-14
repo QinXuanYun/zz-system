@@ -883,18 +883,6 @@ async function renderReportBar(data) {
     // Use allItems from API (already sorted)
     const allItems = data.allItems || [...(data.red||[]),...(data.yellow||[]),...(data.blue||[]),...(data.green||[])];
     const colors = {red: '#ff4d4f', yellow: '#faad14', blue: '#1890ff', green: '#52c41a'};
-    
-    // Get indicator averages from API (average for each indicator across all majors)
-    const indicatorAverages = data.indicatorAverages || {};
-    
-    // Build average line data - for each item, get the corresponding indicator's average
-    const avgLineData = allItems.map(item => {
-        const avgInfo = indicatorAverages[item.id];
-        return avgInfo ? avgInfo.score.toFixed(1) : '0';
-    });
-    
-    console.log('Indicator averages:', indicatorAverages);
-    console.log('Average line data:', avgLineData);
 
     chart.setOption({
         tooltip: {
@@ -902,16 +890,12 @@ async function renderReportBar(data) {
             formatter: function(params) {
                 let result = params[0].name + '<br/>';
                 params.forEach(p => {
-                    if (p.seriesName === '指标数值') {
-                        result += p.marker + ' ' + p.seriesName + ': ' + p.value + '<br/>';
-                    } else if (p.seriesName === '所有专业平均值') {
-                        result += p.marker + ' ' + p.seriesName + ': ' + p.value + '分<br/>';
-                    }
+                    result += p.marker + ' ' + p.seriesName + ': ' + p.value + '<br/>';
                 });
                 return result;
             }
         },
-        legend: {data: ['指标数值', '所有专业平均值'], top: 0},
+        legend: {data: ['指标数值'], top: 0},
         xAxis: {type: 'category', data: allItems.map(i => i.name), axisLabel: {rotate: 15, interval: 0}},
         yAxis: {type: 'value', max: 100, name: '数值/分数'},
         series: [
@@ -922,23 +906,6 @@ async function renderReportBar(data) {
                     value: (i.value * 100).toFixed(1),
                     itemStyle: {color: colors[i.level]}
                 }))
-            },
-            {
-                name: '所有专业平均值',
-                type: 'line',
-                data: avgLineData,
-                lineStyle: {color: '#faad14', type: 'solid', width: 3},
-                itemStyle: {color: '#faad14'},
-                symbol: 'circle',
-                symbolSize: 8,
-                z: 10,
-                label: {
-                    show: true,
-                    position: 'top',
-                    formatter: '{c}',
-                    fontSize: 10,
-                    color: '#faad14'
-                }
             }
         ],
         grid: {top: 50, bottom: 60, left: 70, right: 30}
