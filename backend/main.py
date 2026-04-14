@@ -1346,14 +1346,16 @@ async def download_report_pdf(major_id: str, year: str = None, token: str = None
         leading=18,
         spaceBefore=6,
         spaceAfter=6,
-        leftIndent=0
+        leftIndent=0,
+        wordWrap='CJK'
     )
     
     bullet_style = ParagraphStyle(
         'CustomBullet',
         parent=normal_style,
         leftIndent=16,
-        firstLineIndent=-16
+        firstLineIndent=-16,
+        wordWrap='CJK'
     )
     
     story = []
@@ -1473,7 +1475,8 @@ async def download_report_pdf(major_id: str, year: str = None, token: str = None
                 indented_style = ParagraphStyle(
                     'Indented',
                     parent=normal_style,
-                    leftIndent=10
+                    leftIndent=12,
+                    wordWrap='CJK'
                 )
                 story.append(Paragraph(line, indented_style))
             else:
