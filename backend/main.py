@@ -38,7 +38,20 @@ from database import (
 # Register Chinese font for PDF - Support Windows, Linux, macOS
 def register_chinese_font():
     """Try to register a Chinese font for PDF generation."""
-    font_paths = [
+    # Get the project root directory
+    project_root = Path(__file__).parent.parent
+    fonts_dir = project_root / "fonts"
+    
+    font_paths = []
+    
+    # Add fonts from project fonts directory
+    if fonts_dir.exists():
+        for f in fonts_dir.iterdir():
+            if f.suffix.lower() in ['.ttf', '.otf', '.ttc']:
+                font_paths.append(str(f))
+    
+    # Add system font paths
+    font_paths.extend([
         r"C:\Windows\Fonts\msyh.ttc",
         r"C:\Windows\Fonts\simhei.ttf",
         r"C:\Windows\Fonts\simsun.ttc",
@@ -48,7 +61,7 @@ def register_chinese_font():
         "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
         "/System/Library/Fonts/PingFang.ttc",
         "/Library/Fonts/Arial Unicode.ttf",
-    ]
+    ])
     
     for font_path in font_paths:
         if os.path.exists(font_path):
