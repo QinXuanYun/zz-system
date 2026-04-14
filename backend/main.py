@@ -1244,6 +1244,108 @@ async def generate_report(major_id: str, year: str = None):
         "reportText": report_text
     }
 
+@app.get("/api/report/{major_id}/pdf")
+async def download_report_pdf(major_id: str, year: str = None, token: str = None):
+    """Download report as PDF"""
+    # Verify token
+    if not token:
+        raise HTTPException(status_code=401, detail="Missing token")
+    payload = verify_token(token)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    
+    years = get_years()
+    if not years:
+        raise HTTPException(status_code=404, detail="暂无数据")
+    
+    target_year = year or years[-1]
+    db_data = get_year_data(target_year)
+    
+    if not db_data:
+        raise HTTPException(status_code=404, detail="年份不存在")
+    
+    meta = db_data["meta"]
+    year_data = db_data["data"].get(target_year, {})
+    mdata = year_data.get(major_id, {})
+    
+    major_meta = next((m for m in meta["majors"] if m["id"] == major_id), None)
+    if not major_meta:
+        raise HTTPException(status_code=404, detail="专业不存在")
+    
+    # Get report data
+    report_data = await generate_report(major_id, target_year)
+    report_text = report_data["reportText"]
+    
+    # Create PDF
+    output_dir = Path(__file__).parent.parent / "pdf_reports"
+    output_dir.mkdir(exist_ok=True)
+    
+    pdf_path = output_dir / f"{major_meta['name']}_{target_year}_诊断报告.pdf"
+    
+    # Build PDF content
+    doc = SimpleDocTemplate(str(pdf_path), pagesize=A4,
+                            leftMargin=2*cm, rightMargin=2*cm,
+                            topMargin=2*cm, bottomMargin=2*cm)
+    
+    styles = getSampleStyleSheet()
+    # Create Chinese paragraph style
+    normal_style = ParagraphStyle(
+        'Normal',
+        parent=styles['Normal'],
+        fontName=PDF_FONT,
+        fontSize=11,
+        leading=18,
+        spaceBefore=6,
+        spaceAfter=6
+    )
+    
+    title_style = ParagraphStyle(
+        'Title',
+        parent=styles['Title'],
+        fontName=PDF_FONT,
+        fontSize=16,
+        leading=22,
+        spaceBefore=12,
+        spaceAfter=12,
+        alignment=TA_CENTER
+    )
+    
+    heading_style = ParagraphStyle(
+        'Heading',
+        parent=styles['Heading2'],
+        fontName=PDF_FONT,
+        fontSize=13,
+        leading=18,
+        spaceBefore=12,
+        spaceAfter=8
+    )
+    
+    story = []
+    
+    # Add title
+    story.append(Paragraph(f"{major_meta['name']} 专业发展诊断报告", title_style))
+    story.append(Paragraph(f"数据年度：{target_year}", normal_style))
+    story.append(Spacer(1, 0.5*cm))
+    
+    # Add report text (parse line by line)
+    for line in report_text.split('\n'):
+        line = line.strip()
+        if not line:
+            story.append(Spacer(1, 0.3*cm))
+            continue
+        
+        # Check if it's a heading
+        if line.startswith('一、') or line.startswith('二、') or line.startswith('三、'):
+            story.append(Paragraph(line.replace('一、', '').replace('二、', '').replace('三、', ''), heading_style))
+        else:
+            story.append(Paragraph(line, normal_style))
+    
+    # Build PDF
+    doc.build(story)
+    
+    return FileResponse(str(pdf_path), media_type='application/pdf', 
+                        filename=f"{major_meta['name']}_{target_year}_诊断报告.pdf")
+
 # ============================================================
 # Static Files
 # ============================================================
