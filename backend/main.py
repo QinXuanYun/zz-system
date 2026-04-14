@@ -1397,6 +1397,10 @@ async def download_report_pdf(major_id: str, year: str = None, token: str = None
     # Process report text and create nicer content
     report_lines = report_data['reportText'].split('\n')
     
+    # Track bullet count for ordered list
+    current_list_num = 0
+    in_section = None  # 'red', 'yellow', 'blue', 'green'
+    
     for line in report_lines:
         line = line.strip()
         if not line:
@@ -1416,6 +1420,8 @@ async def download_report_pdf(major_id: str, year: str = None, token: str = None
             continue
         if line.startswith('报告由专业发展智诊系统自动生成'):
             continue
+        if line.startswith('生成时间：'):
+            continue
         
         # Section headings
         if line.startswith('一、'):
@@ -1426,18 +1432,44 @@ async def download_report_pdf(major_id: str, year: str = None, token: str = None
             story.append(Paragraph('三、综合改进建议', section_style))
         elif line.startswith('红色预警指标（'):
             story.append(Paragraph(line, normal_style))
+            current_list_num = 0
+            in_section = 'red'
         elif line.startswith('黄色预警指标（'):
             story.append(Paragraph(line, normal_style))
+            current_list_num = 0
+            in_section = 'yellow'
         elif line.startswith('蓝色关注指标（'):
             story.append(Paragraph(line, normal_style))
+            current_list_num = 0
+            in_section = 'blue'
         elif line.startswith('绿色健康指标（'):
             story.append(Paragraph(line, normal_style))
+            current_list_num = 0
+            in_section = 'green'
         elif line.startswith('• '):
-            story.append(Paragraph(line, bullet_style))
+            if in_section:  # in indicators section, use ordered list
+                current_list_num += 1
+                content = line[2:]  # remove leading "• "
+                story.append(Paragraph(f"{current_list_num}. {content}", bullet_style))
+            else:
+                story.append(Paragraph(line, bullet_style))
         elif line.startswith('1. ') or line.startswith('2.') or line.startswith('3.') or line.startswith('4.'):
             story.append(Paragraph(line, normal_style))
         else:
             story.append(Paragraph(line, normal_style))
+    
+    # Add footer - horizontal line and centered generation time
+    story.append(Spacer(1, 1*cm))
+    story.append(HRFlowable(width='100%', thickness=1, color=colors.HexColor('#e0e0e0')))
+    story.append(Spacer(1, 0.3*cm))
+    footer_style = ParagraphStyle(
+        'Footer',
+        parent=normal_style,
+        alignment=TA_CENTER,
+        fontSize=10,
+        textColor=colors.HexColor('#999999')
+    )
+    story.append(Paragraph(f"报告由专业发展智诊系统自动生成 | 生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", footer_style))
     
     # Build PDF
     doc.build(story)
