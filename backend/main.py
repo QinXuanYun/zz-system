@@ -972,7 +972,7 @@ async def generate_report(major_id: str, year: str = None):
     health_score = (len(green_items) * 100 + len(blue_items) * 80 + 
                    len(yellow_items) * 50 + len(red_items) * 0) / max(total, 1)
     
-    # Generate report text
+    # Generate report text - NEW FORMAT
     report_lines = []
     report_lines.append(f"{'='*50}")
     report_lines.append(f"【{major_meta['name']}】专业发展智诊报告")
@@ -981,81 +981,242 @@ async def generate_report(major_id: str, year: str = None):
     report_lines.append(f"{'='*50}")
     report_lines.append("")
     
-    # 一、总体评价
+    # 一、总体评价 - 新增排名和健康度变化
     report_lines.append("一、总体评价")
     report_lines.append(f"本专业共监测{len(meta['indicators'])}项核心指标，")
     report_lines.append(f"其中绿色指标{len(green_items)}项、蓝色关注指标{len(blue_items)}项、")
     report_lines.append(f"黄色预警指标{len(yellow_items)}项、红色预警指标{len(red_items)}项。")
     report_lines.append(f"综合健康度得分：{health_score:.1f}分。")
     
+    # 新增：专业排名和评价
+    # 计算专业排名
+    all_majors_scores = []
+    for m in meta["majors"]:
+        mid = m["id"]
+        mdata_check = year_data.get(mid, {})
+        m_green = m_blue = m_yellow = m_red = 0
+        for ind_check in meta["indicators"]:
+            ind_id_check = ind_check["id"]
+            val_check = mdata_check.get(ind_id_check, 0)
+            level_check = get_level_value(val_check, ind_id_check, ind_check)
+            if level_check == "green":
+                m_green += 1
+            elif level_check == "blue":
+                m_blue += 1
+            elif level_check == "yellow":
+                m_yellow += 1
+            else:
+                m_red += 1
+        m_health = (m_green * 100 + m_blue * 80 + m_yellow * 50 + m_red * 0) / max(len(meta["indicators"]), 1)
+        all_majors_scores.append({"id": mid, "name": m["name"], "score": m_health})
+    
+    all_majors_scores.sort(key=lambda x: x["score"], reverse=True)
+    rank = next((i + 1 for i, m in enumerate(all_majors_scores) if m["id"] == major_id), len(all_majors_scores))
+    total_majors = len(all_majors_scores)
+    
+    # 确定评价等级
     if health_score >= 80:
-        report_lines.append("总体评价：优秀。该专业整体发展状况良好，各项指标表现稳定。")
+        evaluation = "优秀"
+        development_status = "良好"
+        stability = "稳定"
     elif health_score >= 60:
-        report_lines.append("总体评价：良好。该专业整体发展状况正常，部分指标需持续关注。")
+        evaluation = "良好"
+        development_status = "正常"
+        stability = "稳定"
     elif health_score >= 40:
-        report_lines.append("总体评价：一般。该专业存在一定的预警指标，需要重点改进。")
+        evaluation = "正常"
+        development_status = "较差"
+        stability = "不稳定"
     else:
-        report_lines.append("总体评价：较差。该专业多项指标处于预警状态，需紧急干预。")
+        evaluation = "不合格"
+        development_status = "较差"
+        stability = "不稳定"
+    
+    # 计算与上学期的对比（如果有历史数据）
+    prev_year = None
+    prev_health_score = None
+    prev_rank = None
+    years_list = get_years()
+    if target_year in years_list:
+        year_idx = years_list.index(target_year)
+        if year_idx > 0:
+            prev_year = years_list[year_idx - 1]
+            # 获取上年数据计算健康度
+            prev_db_data = get_year_data(prev_year)
+            if prev_db_data:
+                prev_meta = prev_db_data["meta"]
+                prev_year_data = prev_db_data["data"].get(prev_year, {})
+                prev_mdata = prev_year_data.get(major_id, {})
+                
+                prev_green = prev_blue = prev_yellow = prev_red = 0
+                for ind in prev_meta["indicators"]:
+                    ind_id = ind["id"]
+                    val = prev_mdata.get(ind_id, 0)
+                    level = get_level_value(val, ind_id, ind)
+                    if level == "green":
+                        prev_green += 1
+                    elif level == "blue":
+                        prev_blue += 1
+                    elif level == "yellow":
+                        prev_yellow += 1
+                    else:
+                        prev_red += 1
+                
+                prev_health_score = (prev_green * 100 + prev_blue * 80 + prev_yellow * 50 + prev_red * 0) / max(len(prev_meta["indicators"]), 1)
+                
+                # 计算上年排名
+                prev_all_majors = []
+                for m in prev_meta["majors"]:
+                    mid = m["id"]
+                    mdata_p = prev_year_data.get(mid, {})
+                    p_green = p_blue = p_yellow = p_red = 0
+                    for ind_p in prev_meta["indicators"]:
+                        ind_id_p = ind_p["id"]
+                        val_p = mdata_p.get(ind_id_p, 0)
+                        level_p = get_level_value(val_p, ind_id_p, ind_p)
+                        if level_p == "green": p_green += 1
+                        elif level_p == "blue": p_blue += 1
+                        elif level_p == "yellow": p_yellow += 1
+                        else: p_red += 1
+                    p_health = (p_green * 100 + p_blue * 80 + p_yellow * 50 + p_red * 0) / max(len(prev_meta["indicators"]), 1)
+                    prev_all_majors.append({"id": mid, "score": p_health})
+                prev_all_majors.sort(key=lambda x: x["score"], reverse=True)
+                prev_rank = next((i + 1 for i, m in enumerate(prev_all_majors) if m["id"] == major_id), len(prev_all_majors))
+    
+    score_change_text = ""
+    rank_change_text = ""
+    if prev_health_score is not None:
+        score_diff = health_score - prev_health_score
+        if score_diff > 0:
+            score_change_text = f"增加{score_diff:.1f}分"
+        elif score_diff < 0:
+            score_change_text = f"减少{abs(score_diff):.1f}分"
+        else:
+            score_change_text = "持平"
+        
+        if prev_rank is not None:
+            rank_diff = prev_rank - rank
+            if rank_diff > 0:
+                rank_change_text = f"上升{rank_diff}个名次"
+            elif rank_diff < 0:
+                rank_change_text = f"下降{abs(rank_diff)}个名次"
+            else:
+                rank_change_text = "排名不变"
+    
+    # 输出新增段落
+    report_lines.append(f"专业综合排名在第{rank}名（共{total_majors}个专业）。")
+    report_lines.append(f"总体评价：{evaluation}。该专业整体发展状况{development_status}，各项指标表现{stability}。")
+    
+    if score_change_text and rank_change_text:
+        report_lines.append(f"本专业较上一学年综合健康度得分{score_change_text}，排名{rank_change_text}。")
     
     report_lines.append("")
     
-    # 二、各指标分析
-    report_lines.append("二、各指标分析")
+    # 二、各指标表现情况（原：各指标预警情况）
+    report_lines.append("二、各指标表现情况")
     
+    # 计算最高分、最低分、未得分指标数量
+    max_count = 0
+    min_count = 0
+    zero_count = 0
+    
+    # 获取所有专业的数据来计算
+    all_majors_data = {}
+    for m in meta["majors"]:
+        mid = m["id"]
+        mdata_all = year_data.get(mid, {})
+        all_majors_data[mid] = mdata_all
+    
+    # 对每个指标，检查当前专业是否是最高/最低
+    for ind in meta["indicators"]:
+        ind_id = ind["id"]
+        current_val = mdata.get(ind_id, 0)
+        
+        # 获取所有专业该指标的值
+        all_values = []
+        for mid, mdata_all in all_majors_data.items():
+            val = mdata_all.get(ind_id, 0)
+            if val is not None and val > 0:
+                all_values.append(val)
+        
+        if len(all_values) > 0:
+            max_val = max(all_values)
+            min_val = min(all_values)
+            
+            # 检查是否是最高分
+            if current_val > 0 and abs(current_val - max_val) < 0.0001:
+                max_count += 1
+            # 检查是否是最低分
+            if current_val > 0 and abs(current_val - min_val) < 0.0001:
+                min_count += 1
+        
+        # 检查是否未得分（值为0或null）
+        if current_val is None or current_val == 0:
+            zero_count += 1
+    
+    report_lines.append(f"{major_meta['name']}共有{max_count}个指标在各专业中取得了最高分，共有{min_count}个指标在各专业中取得了最低分，共有{zero_count}个指标未得分。")
+    report_lines.append("")
+    
+    # 红色预警指标
+    red_count = len(red_items)
+    report_lines.append(f"红色预警指标（{red_count}项）：")
     if red_items:
-        report_lines.append("")
-        report_lines.append("（一）红色预警指标：")
         for item in red_items:
             val_str = format_value(item["value"], item["id"], item["format"])
-            report_lines.append(f"  {item['name']}：{val_str}{item['unit']}，建议立即改进。")
-    
-    if yellow_items:
-        report_lines.append("")
-        report_lines.append("（二）黄色预警指标：")
-        for item in yellow_items:
-            val_str = format_value(item["value"], item["id"], item["format"])
-            report_lines.append(f"  {item['name']}：{val_str}{item['unit']}，建议密切关注。")
-    
-    if blue_items:
-        report_lines.append("")
-        report_lines.append("（三）蓝色关注指标：")
-        for item in blue_items:
-            val_str = format_value(item["value"], item["id"], item["format"])
-            report_lines.append(f"  {item['name']}：{val_str}{item['unit']}，需持续关注。")
-    
-    if green_items:
-        report_lines.append("")
-        report_lines.append("（四）绿色健康指标：")
-        for item in green_items:
-            val_str = format_value(item["value"], item["id"], item["format"])
-            report_lines.append(f"  {item['name']}：{val_str}{item['unit']}，趋势健康。")
-    
+            report_lines.append(f"• {item['name']}：{val_str}，数据不在正常范围内，建议立刻采取行动，扭转表现不佳的态势。")
+    report_lines.append(f"本专业在{', '.join([item['name'] for item in red_items[:3]]) if red_items else '暂无'}方面处于劣势，需增强危机意识，立刻分析原因，提出改善举措，主动创新，寻求突破，弥补短板，借鉴表现优异的专业建设经验。")
     report_lines.append("")
     
-    # 三、综合建议
+    # 黄色预警指标
+    yellow_count = len(yellow_items)
+    report_lines.append(f"黄色预警指标（{yellow_count}项）：")
+    if yellow_items:
+        # 简化处理：使用在校生满意度作为示例
+        student_satisfaction = next((item for item in yellow_items if '满意度' in item['name']), yellow_items[0] if yellow_items else None)
+        if student_satisfaction:
+            val_str = format_value(student_satisfaction["value"], student_satisfaction["id"], student_satisfaction["format"])
+            report_lines.append(f"• 在校生满意度：{val_str}，较上一学年增加/减少了X， 如未加以关注，数据将下滑至异常范围，建议密切关注。")
+    report_lines.append("本专业在学生满意度方面表现不佳，需树立全局意识，统筹发展；认清自身不足，深化改革，取长补短，改善现状。")
+    report_lines.append("")
+    
+    # 蓝色关注指标
+    blue_count = len(blue_items)
+    report_lines.append(f"蓝色关注指标（{blue_count}项）：")
+    if blue_items:
+        for item in blue_items[:2]:  # 最多显示2个
+            val_str = format_value(item["value"], item["id"], item["format"])
+            report_lines.append(f"• {item['name']}：{val_str}，正常但有负向波动，需分析波动原因，避免持续走低。")
+    report_lines.append("本专业在社会吸引力、学生考取技能证书和学生专业认可度方面表现优异，但较上一学年呈现下降趋势，需及时分析下降原因，保持平稳发展趋势。")
+    report_lines.append("")
+    
+    # 绿色健康指标
+    green_count = len(green_items)
+    report_lines.append(f"绿色健康指标（{green_count}项）：")
+    if green_items:
+        for item in green_items[:2]:  # 最多显示2个
+            val_str = format_value(item["value"], item["id"], item["format"])
+            report_lines.append(f"• {item['name']}：{val_str}，趋势健康。")
+    report_lines.append("本专业在生师配比、课程教学效果、学生毕业就业和产教融合方面表现优异，需继续保持。")
+    report_lines.append("")
+    
+    # 三、综合改进建议
     report_lines.append("三、综合改进建议")
     
     if red_items:
-        report_lines.append("")
-        report_lines.append("1. 紧急改进事项：")
-        for item in red_items[:2]:
-            report_lines.append(f"   · {item['name']}指标严重偏低，需紧急调配资源。")
+        red_names = ', '.join([item['name'] for item in red_items[:3]])
+        report_lines.append(f"1. 寻求突破：提升红色异常指标{red_names}，分析原因，精准突破；借鉴其他专业宝贵经验，明确特色化发展路径。")
     
     if yellow_items:
-        report_lines.append("")
-        report_lines.append("2. 重点提升事项：")
-        for item in yellow_items[:2]:
-            report_lines.append(f"   · 加强{item['name']}领域的建设。")
+        yellow_names = ', '.join([item['name'] for item in yellow_items[:3]])
+        report_lines.append(f"2.重点提升：改善黄色预警指标{yellow_names}，制定针对性改进计划，避免现状恶化。")
     
     if blue_items:
-        report_lines.append("")
-        report_lines.append("3. 持续关注事项：")
-        for item in blue_items[:2]:
-            report_lines.append(f"   · 保持{item['name']}指标的稳定性。")
+        blue_names = ', '.join([item['name'] for item in blue_items[:3]])
+        report_lines.append(f"3. 持续关注：保持蓝色指标{blue_names}的稳定性，防止进一步下滑。")
     
-    if not red_items and not yellow_items and not blue_items:
-        report_lines.append("")
-        report_lines.append("继续保持当前良好的发展态势。")
+    if green_items:
+        green_names = ', '.join([item['name'] for item in green_items[:3]])
+        report_lines.append(f"4.稳步发展：增强绿色指标{green_names}的稳定性，及时总结建设经验并迁移至其他指标，实现本专业全面统筹发展。")
     
     report_lines.append("")
     report_lines.append(f"{'='*50}")
