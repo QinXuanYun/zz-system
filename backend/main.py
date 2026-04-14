@@ -68,9 +68,12 @@ def register_chinese_font():
             try:
                 font_name = os.path.basename(font_path).split('.')[0]
                 pdfmetrics.registerFont(TTFont(font_name, font_path))
+                print(f"[FONT] Successfully registered: {font_name} from {font_path}")
                 return font_name
-            except Exception:
+            except Exception as e:
+                print(f"[FONT] Failed to register {font_path}: {e}")
                 continue
+    print("[FONT] Falling back to Helvetica")
     return 'Helvetica'
 
 PDF_FONT = register_chinese_font()
