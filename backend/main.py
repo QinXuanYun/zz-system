@@ -983,10 +983,25 @@ async def generate_report(major_id: str, year: str = None):
         else:
             green_items.append(item)
     
-    # Calculate health score
-    total = len(meta["indicators"])
-    health_score = (len(green_items) * 100 + len(blue_items) * 80 + 
-                   len(yellow_items) * 50 + len(red_items) * 0) / max(total, 1)
+    # Calculate composite score based on indicator weights (same as dashboard ranking)
+    total_score = 0
+    max_possible_score = 0
+    for ind in meta["indicators"]:
+        ind_id = ind["id"]
+        val = mdata.get(ind_id, 0)
+        level = get_level_value(val, ind_id, ind)
+        weight = ind.get("weight", 1)
+        max_possible_score += weight * 100
+        if level == "green":
+            total_score += weight * 100
+        elif level == "blue":
+            total_score += weight * 85
+        elif level == "yellow":
+            total_score += weight * 60
+        else:  # red
+            total_score += weight * 30
+    
+    composite_score = round(total_score / max(max_possible_score, 1) * 100, 1) if max_possible_score > 0 else 0
     
     # Generate report text - NEW FORMAT
     report_lines = []
@@ -997,7 +1012,7 @@ async def generate_report(major_id: str, year: str = None):
     report_lines.append(f"{'-'*50}")
     
     # 预警数量表格
-    report_lines.append(f"[红:{len(red_items)}] [黄:{len(yellow_items)}] [蓝:{len(blue_items)}] [绿:{len(green_items)}] 健康度:{health_score:.1f}")
+    report_lines.append(f"[红:{len(red_items)}] [黄:{len(yellow_items)}] [蓝:{len(blue_items)}] [绿:{len(green_items)}] 得分:{composite_score:.1f}")
     report_lines.append("")
     
     # 一、总体评价
@@ -1005,44 +1020,48 @@ async def generate_report(major_id: str, year: str = None):
     report_lines.append(f"本专业共监测{len(meta['indicators'])}项核心指标，")
     report_lines.append(f"其中绿色指标{len(green_items)}项、蓝色关注指标{len(blue_items)}项、")
     report_lines.append(f"黄色预警指标{len(yellow_items)}项、红色预警指标{len(red_items)}项。")
-    report_lines.append(f"综合健康度得分：{health_score:.1f}分。")
+    report_lines.append(f"专业综合排行榜（得分）：{composite_score:.1f}分。")
     
     # 新增：专业排名和评价
-    # 计算专业排名
+    # 计算专业排名 - 使用与专业综合排行榜相同的加权得分计算方式
     all_majors_scores = []
     for m in meta["majors"]:
         mid = m["id"]
         mdata_check = year_data.get(mid, {})
-        m_green = m_blue = m_yellow = m_red = 0
+        # 计算加权得分
+        m_total_score = 0
+        m_max_possible_score = 0
         for ind_check in meta["indicators"]:
             ind_id_check = ind_check["id"]
             val_check = mdata_check.get(ind_id_check, 0)
             level_check = get_level_value(val_check, ind_id_check, ind_check)
+            weight_check = ind_check.get("weight", 1)
+            m_max_possible_score += weight_check * 100
             if level_check == "green":
-                m_green += 1
+                m_total_score += weight_check * 100
             elif level_check == "blue":
-                m_blue += 1
+                m_total_score += weight_check * 85
             elif level_check == "yellow":
-                m_yellow += 1
+                m_total_score += weight_check * 60
             else:
-                m_red += 1
-        m_health = (m_green * 100 + m_blue * 80 + m_yellow * 50 + m_red * 0) / max(len(meta["indicators"]), 1)
-        all_majors_scores.append({"id": mid, "name": m["name"], "score": m_health})
+                m_total_score += weight_check * 30
+        m_composite = round(m_total_score / max(m_max_possible_score, 1) * 100, 1) if m_max_possible_score > 0 else 0
+        all_majors_scores.append({"id": mid, "name": m["name"], "score": m_composite})
     
     all_majors_scores.sort(key=lambda x: x["score"], reverse=True)
     rank = next((i + 1 for i, m in enumerate(all_majors_scores) if m["id"] == major_id), len(all_majors_scores))
     total_majors = len(all_majors_scores)
     
     # 确定评价等级
-    if health_score >= 80:
+    if composite_score >= 80:
         evaluation = "优秀"
         development_status = "良好"
         stability = "稳定"
-    elif health_score >= 60:
+    elif composite_score >= 60:
         evaluation = "良好"
         development_status = "正常"
         stability = "稳定"
-    elif health_score >= 40:
+    elif composite_score >= 40:
         evaluation = "正常"
         development_status = "较差"
         stability = "不稳定"
@@ -1053,59 +1072,71 @@ async def generate_report(major_id: str, year: str = None):
     
     # 计算与上学期的对比（如果有历史数据）
     prev_year = None
-    prev_health_score = None
+    prev_composite_score = None
     prev_rank = None
     years_list = get_years()
     if target_year in years_list:
         year_idx = years_list.index(target_year)
         if year_idx > 0:
             prev_year = years_list[year_idx - 1]
-            # 获取上年数据计算健康度
+            # 获取上年数据计算加权得分
             prev_db_data = get_year_data(prev_year)
             if prev_db_data:
                 prev_meta = prev_db_data["meta"]
                 prev_year_data = prev_db_data["data"].get(prev_year, {})
                 prev_mdata = prev_year_data.get(major_id, {})
                 
-                prev_green = prev_blue = prev_yellow = prev_red = 0
+                # 计算上年加权得分
+                prev_total_score = 0
+                prev_max_possible_score = 0
                 for ind in prev_meta["indicators"]:
                     ind_id = ind["id"]
                     val = prev_mdata.get(ind_id, 0)
                     level = get_level_value(val, ind_id, ind)
+                    weight = ind.get("weight", 1)
+                    prev_max_possible_score += weight * 100
                     if level == "green":
-                        prev_green += 1
+                        prev_total_score += weight * 100
                     elif level == "blue":
-                        prev_blue += 1
+                        prev_total_score += weight * 85
                     elif level == "yellow":
-                        prev_yellow += 1
+                        prev_total_score += weight * 60
                     else:
-                        prev_red += 1
+                        prev_total_score += weight * 30
                 
-                prev_health_score = (prev_green * 100 + prev_blue * 80 + prev_yellow * 50 + prev_red * 0) / max(len(prev_meta["indicators"]), 1)
+                prev_composite_score = round(prev_total_score / max(prev_max_possible_score, 1) * 100, 1) if prev_max_possible_score > 0 else 0
                 
-                # 计算上年排名
+                # 计算上年排名 - 使用加权得分
                 prev_all_majors = []
                 for m in prev_meta["majors"]:
                     mid = m["id"]
                     mdata_p = prev_year_data.get(mid, {})
-                    p_green = p_blue = p_yellow = p_red = 0
+                    # 计算加权得分
+                    p_total_score = 0
+                    p_max_possible_score = 0
                     for ind_p in prev_meta["indicators"]:
                         ind_id_p = ind_p["id"]
                         val_p = mdata_p.get(ind_id_p, 0)
                         level_p = get_level_value(val_p, ind_id_p, ind_p)
-                        if level_p == "green": p_green += 1
-                        elif level_p == "blue": p_blue += 1
-                        elif level_p == "yellow": p_yellow += 1
-                        else: p_red += 1
-                    p_health = (p_green * 100 + p_blue * 80 + p_yellow * 50 + p_red * 0) / max(len(prev_meta["indicators"]), 1)
-                    prev_all_majors.append({"id": mid, "score": p_health})
+                        weight_p = ind_p.get("weight", 1)
+                        p_max_possible_score += weight_p * 100
+                        if level_p == "green":
+                            p_total_score += weight_p * 100
+                        elif level_p == "blue":
+                            p_total_score += weight_p * 85
+                        elif level_p == "yellow":
+                            p_total_score += weight_p * 60
+                        else:
+                            p_total_score += weight_p * 30
+                    p_composite = round(p_total_score / max(p_max_possible_score, 1) * 100, 1) if p_max_possible_score > 0 else 0
+                    prev_all_majors.append({"id": mid, "score": p_composite})
                 prev_all_majors.sort(key=lambda x: x["score"], reverse=True)
                 prev_rank = next((i + 1 for i, m in enumerate(prev_all_majors) if m["id"] == major_id), len(prev_all_majors))
     
     score_change_text = ""
     rank_change_text = ""
-    if prev_health_score is not None:
-        score_diff = health_score - prev_health_score
+    if prev_composite_score is not None:
+        score_diff = composite_score - prev_composite_score
         if score_diff > 0:
             score_change_text = f"增加{score_diff:.1f}分"
         elif score_diff < 0:
@@ -1127,7 +1158,7 @@ async def generate_report(major_id: str, year: str = None):
     report_lines.append(f"该专业整体发展状况{development_status}，各项指标表现{stability}。")
     
     if score_change_text and rank_change_text:
-        report_lines.append(f"本专业较上一学年综合健康度得分{score_change_text}，排名{rank_change_text}。")
+        report_lines.append(f"本专业较上一学年专业综合排行榜（得分）{score_change_text}，排名{rank_change_text}。")
     
     report_lines.append("")
     
