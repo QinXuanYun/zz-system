@@ -1005,7 +1005,7 @@ async def generate_report(major_id: str, year: str = None):
     report_lines.append(f"本专业共监测{len(meta['indicators'])}项核心指标，")
     report_lines.append(f"其中绿色指标{len(green_items)}项、蓝色关注指标{len(blue_items)}项、")
     report_lines.append(f"黄色预警指标{len(yellow_items)}项、红色预警指标{len(red_items)}项。")
-    report_lines.append(f"综合健康度得分：{health_score:.1f}分。")
+    report_lines.append(f"专业综合排行榜（得分）：{health_score:.1f}分。")
     
     # 新增：专业排名和评价
     # 计算专业排名
