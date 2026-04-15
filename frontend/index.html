@@ -502,7 +502,7 @@ async function renderTrendChart(majorId, year) {
     const data = await api(`/api/major/${majorId}/trends`);
     const chart = echarts.init(document.getElementById('trendChart'));
     
-    const series = data.trends.slice(0, 7).map(t => ({
+    const series = data.trends.map(t => ({
         name: t.name,
         type: 'line',
         data: t.values,
@@ -511,11 +511,11 @@ async function renderTrendChart(majorId, year) {
     
     chart.setOption({
         tooltip: {trigger: 'axis'},
-        legend: {data: data.trends.slice(0,7).map(t => t.name), top: 0},
+        legend: {data: data.trends.map(t => t.name), top: 0, type: 'scroll'},
         xAxis: {type: 'category', data: data.years},
         yAxis: {type: 'value'},
         series,
-        grid: {top: 40, bottom: 30, left: 60, right: 20}
+        grid: {top: 80, bottom: 30, left: 60, right: 20}
     });
 }
 
