@@ -1282,7 +1282,7 @@ async def generate_report(major_id: str, year: str = None):
         "majorId": major_id,
         "majorName": major_meta["name"],
         "year": target_year,
-        "healthScore": round(health_score, 1),
+        "healthScore": composite_score,
         "red": red_items,
         "yellow": yellow_items,
         "blue": blue_items,
