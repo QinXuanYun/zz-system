@@ -144,15 +144,18 @@ def get_indicator_meta_db() -> Dict[str, Dict]:
     finally:
         db.close()
 
-def get_level_value(val: float, ind_id: str, ind_meta: Dict) -> str:
+def get_level_value(val: float, ind_id: str, ind_meta: Dict, prev_val: float = None) -> str:
     """Get warning level for an indicator value.
     
     Four levels: red (danger) < yellow (warning) < blue (attention) < green (good)
     Thresholds in database are stored as decimals (0.85 = 85%).
     Values should already be converted to decimal format during import.
+    
+    Blue level: data is in normal range (>= green threshold), but decreased >= 5% compared to previous year
     """
     thresholds = ind_meta.get("thresholds", {})
     fmt = ind_meta.get("format", "pct")
+    higher_is_better = ind_meta.get("higher_is_better", True)
     
     # Ensure value is in correct format
     if fmt == "pct" and val > 1:
@@ -193,6 +196,23 @@ def get_level_value(val: float, ind_id: str, ind_meta: Dict) -> str:
         if green_thresh > 1:
             green_thresh = green_thresh / 100.0
     
+    # First determine if in normal range (green)
+    is_normal = val >= green_thresh
+    
+    # Check for blue level: normal range + decreased >= 5% compared to previous year
+    if is_normal and prev_val is not None and prev_val > 0:
+        # For higher_is_better indicators, decrease is bad
+        # For lower_is_better indicators, increase is bad
+        if higher_is_better:
+            change_pct = (val - prev_val) / prev_val * 100
+            if change_pct <= -5:  # Decreased by >= 5%
+                return "blue"
+        else:
+            change_pct = (prev_val - val) / prev_val * 100
+            if change_pct <= -5:  # Increased by >= 5% (worse for lower_is_better)
+                return "blue"
+    
+    # Standard level determination
     if val >= green_thresh:
         return "green"
     elif val >= blue_thresh:
@@ -389,6 +409,18 @@ async def get_dashboard(year: str = None):
     year_data = db_data["data"].get(target_year, {})
     ind_dict = {ind["id"]: ind for ind in meta["indicators"]}
     
+    # Get previous year data for blue level calculation
+    sorted_years = sorted(years)
+    prev_year = None
+    prev_year_data = {}
+    if target_year in sorted_years:
+        year_idx = sorted_years.index(target_year)
+        if year_idx > 0:
+            prev_year = sorted_years[year_idx - 1]
+            prev_db_data = get_year_data(prev_year)
+            if prev_db_data and prev_year in prev_db_data["data"]:
+                prev_year_data = prev_db_data["data"][prev_year]
+    
     # Calculate summary
     total_red = total_yellow = total_blue = total_green = 0
     majors_list = []
@@ -403,7 +435,11 @@ async def get_dashboard(year: str = None):
         for ind in meta["indicators"]:
             ind_id = ind["id"]
             val = mdata.get(ind_id, 0)
-            level = get_level_value(val, ind_id, ind)
+            # Get previous year value for blue level calculation
+            prev_val = None
+            if prev_year_data and mid in prev_year_data and ind_id in prev_year_data[mid]:
+                prev_val = prev_year_data[mid][ind_id]
+            level = get_level_value(val, ind_id, ind, prev_val)
             counts[level] += 1
             details[level].append(ind["name"])
         
@@ -546,12 +582,28 @@ async def get_compare(majors: str = None, year: str = None):
             ind = ind_dict.get(ind_id, {})
             fmt = ind.get("format", "num")
             
+            # 确保值格式正确
+            if fmt == "pct" and val > 1:
+                val = val / 100.0
+            
             if fmt == "pct":
+                # 百分比指标：直接使用百分比值
                 score = val * 100
             elif fmt == "ratio":
-                score = max(0, min(100, (22 - val) / (22 - 18) * 100))
+                # 生师比：18以下为满分100，22以上为0分，中间线性插值
+                # 越低越好
+                if val <= 18:
+                    score = 100
+                elif val >= 22:
+                    score = 0
+                else:
+                    score = (22 - val) / (22 - 18) * 100
             elif fmt == "days":
+                # 天数指标：30天为满分100，线性增长
                 score = min(val / 30 * 100, 100)
+            elif fmt == "num":
+                # 数值指标（如师均论文数）：1.5为满分100
+                score = min(val / 1.5 * 100, 100)
             else:
                 score = val * 100
             
@@ -845,7 +897,13 @@ async def get_warnings(year: str = None):
         for ind in meta["indicators"]:
             ind_id = ind["id"]
             val = mdata.get(ind_id, 0)
-            level = get_level_value(val, ind_id, ind_dict)
+            
+            # Get previous year value for blue level calculation
+            prev_val = None
+            if prev_year_data and mid in prev_year_data and ind_id in prev_year_data[mid]:
+                prev_val = prev_year_data[mid][ind_id]
+            
+            level = get_level_value(val, ind_id, ind_dict, prev_val)
             
             if level in ("red", "yellow", "blue"):
                 # Calculate change from previous year
@@ -1181,6 +1239,7 @@ async def generate_report(major_id: str, year: str = None):
     for ind in meta["indicators"]:
         ind_id = ind["id"]
         current_val = mdata.get(ind_id, 0)
+        higher_is_better = ind.get("higher_is_better", True)
         
         # 获取所有专业该指标的值
         all_values = []
@@ -1193,12 +1252,23 @@ async def generate_report(major_id: str, year: str = None):
             max_val = max(all_values)
             min_val = min(all_values)
             
-            # 检查是否是最高分
-            if current_val > 0 and abs(current_val - max_val) < 0.0001:
-                max_count += 1
-            # 检查是否是最低分
-            if current_val > 0 and abs(current_val - min_val) < 0.0001:
-                min_count += 1
+            # 根据指标方向判断最高/最低
+            # 对于越高越好的指标：最大值=最高分，最小值=最低分
+            # 对于越低越好的指标（如生师比）：最小值=最高分，最大值=最低分
+            if higher_is_better:
+                # 检查是否是最高分（最大值）
+                if current_val > 0 and abs(current_val - max_val) < 0.0001:
+                    max_count += 1
+                # 检查是否是最低分（最小值）
+                if current_val > 0 and abs(current_val - min_val) < 0.0001:
+                    min_count += 1
+            else:
+                # 对于越低越好的指标，最小值是最高分
+                if current_val > 0 and abs(current_val - min_val) < 0.0001:
+                    max_count += 1
+                # 最大值是最低分
+                if current_val > 0 and abs(current_val - max_val) < 0.0001:
+                    min_count += 1
         
         # 检查是否未得分（值为0或null）
         if current_val is None or current_val == 0:
