@@ -203,7 +203,7 @@ def get_years() -> List[str]:
     """Get all years from database"""
     db = SessionLocal()
     try:
-        years = db.query(Year).order_by(Year.year_name.desc()).all()
+        years = db.query(Year).order_by(Year.year_name.asc()).all()
         return [y.year_name for y in years]
     finally:
         db.close()
