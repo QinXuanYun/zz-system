@@ -537,7 +537,7 @@ async def get_major_detail(major_id: str, year: str = None):
         prev_val = None
         if prev_year_data and major_id in prev_year_data and ind_id in prev_year_data[major_id]:
             prev_val = prev_year_data[major_id][ind_id]
-        level = get_level_value(val, ind_id, ind_dict, prev_val)
+        level = get_level_value(val, ind_id, ind, prev_val)
         
         indicators.append({
             "id": ind_id,
@@ -904,7 +904,7 @@ async def get_major_trends(major_id: str):
             "name": ind["name"],
             "values": values,
             "slope": round(slope, 4),
-            "level": get_level_value(values[-1], ind_id, ind_dict, prev_val) if values else "green",
+            "level": get_level_value(values[-1], ind_id, ind, prev_val) if values else "green",
             "format": ind.get("format", "num"),
             "unit": ind.get("unit", "")
         })
@@ -958,7 +958,7 @@ async def get_warnings(year: str = None):
             if prev_year_data and mid in prev_year_data and ind_id in prev_year_data[mid]:
                 prev_val = prev_year_data[mid][ind_id]
             
-            level = get_level_value(val, ind_id, ind_dict, prev_val)
+            level = get_level_value(val, ind_id, ind, prev_val)
             
             if level in ("red", "yellow", "blue"):
                 # Calculate change from previous year
@@ -1044,7 +1044,7 @@ async def generate_report(major_id: str, year: str = None):
         if values:
             avg_val = sum(values) / len(values)
             # Convert to score based on level
-            level_avg = get_level_value(avg_val, ind_id, ind_dict)
+            level_avg = get_level_value(avg_val, ind_id, ind)
             if level_avg == "green":
                 score_avg = 100
             elif level_avg == "blue":
@@ -1077,7 +1077,7 @@ async def generate_report(major_id: str, year: str = None):
         prev_val = None
         if prev_year_data and major_id in prev_year_data and ind_id in prev_year_data[major_id]:
             prev_val = prev_year_data[major_id][ind_id]
-        level = get_level_value(val, ind_id, ind_dict, prev_val)
+        level = get_level_value(val, ind_id, ind, prev_val)
         
         # Calculate score based on level
         score = 0
