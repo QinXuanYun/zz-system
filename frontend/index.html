@@ -389,6 +389,7 @@ function renderDashboard(data) {
 
     // Summary row
     const s = data.summary;
+    console.log('Dashboard summary:', s);
     document.getElementById('summaryRow').innerHTML = `
         <div class="summary-card"><div class="label">专业总数</div><div class="value primary">${s.totalMajors}</div></div>
         <div class="summary-card"><div class="label">红色预警</div><div class="value red">${s.red}</div></div>
@@ -640,6 +641,9 @@ async function initWarnings() {
         // Chart
         const counts = {red: 0, yellow: 0, blue: 0};
         data.warnings.forEach(w => counts[w.level]++);
+        
+        console.log('Warning counts:', counts);
+        console.log('All warning levels:', data.warnings.map(w => w.level));
         
         warningChart = echarts.init(document.getElementById('warningChart'));
         warningChart.setOption({
