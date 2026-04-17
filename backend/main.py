@@ -147,11 +147,14 @@ def get_indicator_meta_db() -> Dict[str, Dict]:
 def get_level_value(val: float, ind_id: str, ind_meta: Dict, prev_val: float = None) -> str:
     """Get warning level for an indicator value.
     
-    Four levels: red (danger) < yellow (warning) < blue (attention) < green (good)
+    Four levels based on thresholds and year-over-year change:
+    - 红色 (red): 数值 < red_threshold (不在正常范围内)
+    - 黄色 (yellow): red_threshold <= 数值 < green_threshold (趋于不正常范围)
+    - 绿色 (green): 数值 >= green_threshold 且（无上年数据或较上一年下降 < 5%）
+    - 蓝色 (blue): 数值 >= green_threshold 且较上一年下降 >= 5%
+    
     Thresholds in database are stored as decimals (0.85 = 85%).
     Values should already be converted to decimal format during import.
-    
-    Blue level: data is in normal range (>= green threshold), but decreased >= 5% compared to previous year
     """
     thresholds = ind_meta.get("thresholds", {})
     fmt = ind_meta.get("format", "pct")
@@ -161,28 +164,9 @@ def get_level_value(val: float, ind_id: str, ind_meta: Dict, prev_val: float = N
     if fmt == "pct" and val > 1:
         val = val / 100.0
     
-    if ind_id == "X2":  # 生师比 - lower is better (ratio format)
-        # For X2: lower is better, so order is reversed
-        # red > yellow > blue > green (values)
-        green_thresh = thresholds.get("green", 18)
-        blue_thresh = thresholds.get("blue", 20)
-        yellow_thresh = thresholds.get("yellow", 22)
-        red_thresh = thresholds.get("red", 25)
-        
-        if val <= green_thresh:
-            return "green"
-        elif val <= blue_thresh:
-            return "blue"
-        elif val <= yellow_thresh:
-            return "yellow"
-        else:
-            return "red"
-    
-    # For indicators where higher is better
-    # red < yellow < blue < green (values)
+    # Get thresholds from database
     red_thresh = thresholds.get("red", 0)
     yellow_thresh = thresholds.get("yellow", 0.5)
-    blue_thresh = thresholds.get("blue", 0.7)
     green_thresh = thresholds.get("green", 0.9)
     
     # Ensure thresholds are in correct format
@@ -191,36 +175,45 @@ def get_level_value(val: float, ind_id: str, ind_meta: Dict, prev_val: float = N
             red_thresh = red_thresh / 100.0
         if yellow_thresh > 1:
             yellow_thresh = yellow_thresh / 100.0
-        if blue_thresh > 1:
-            blue_thresh = blue_thresh / 100.0
         if green_thresh > 1:
             green_thresh = green_thresh / 100.0
     
-    # First determine if in normal range (green)
-    is_normal = val >= green_thresh
+    # For indicators where lower is better (e.g., 生师比), reverse the logic
+    if not higher_is_better:
+        # For lower-is-better: higher values are worse
+        # red: val > red_thresh (too high, bad)
+        # yellow: yellow_thresh < val <= red_thresh (warning)
+        # green/blue: val <= green_thresh (normal)
+        
+        if val > red_thresh:
+            return "red"
+        elif val > green_thresh:
+            return "yellow"
+        else:
+            # In normal range (<= green_thresh), check for blue
+            if prev_val is not None and prev_val > 0:
+                # For lower-is-better, increase is bad (worse performance)
+                change_pct = (val - prev_val) / prev_val * 100
+                if change_pct >= 5:  # Increased by >= 5% (worse for lower-is-better)
+                    return "blue"
+            return "green"
     
-    # Check for blue level: normal range + decreased >= 5% compared to previous year
-    if is_normal and prev_val is not None and prev_val > 0:
-        # For higher_is_better indicators, decrease is bad
-        # For lower_is_better indicators, increase is bad
-        if higher_is_better:
+    # For indicators where higher is better (default)
+    # red: val < red_thresh
+    # yellow: red_thresh <= val < green_thresh
+    # green/blue: val >= green_thresh
+    
+    if val < red_thresh:
+        return "red"
+    elif val < green_thresh:
+        return "yellow"
+    else:
+        # In normal range (>= green_thresh), check for blue
+        if prev_val is not None and prev_val > 0:
             change_pct = (val - prev_val) / prev_val * 100
             if change_pct <= -5:  # Decreased by >= 5%
                 return "blue"
-        else:
-            change_pct = (prev_val - val) / prev_val * 100
-            if change_pct <= -5:  # Increased by >= 5% (worse for lower_is_better)
-                return "blue"
-    
-    # Standard level determination
-    if val >= green_thresh:
         return "green"
-    elif val >= blue_thresh:
-        return "blue"
-    elif val >= yellow_thresh:
-        return "yellow"
-    else:
-        return "red"
 
 def format_value(val: float, ind_id: str, fmt: str) -> str:
     """Format a value for display."""
