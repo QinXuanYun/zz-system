@@ -502,28 +502,10 @@ async function renderTrendChart(majorId, year) {
     const data = await api(`/api/major/${majorId}/trends`);
     const chart = echarts.init(document.getElementById('trendChart'));
     
-    // Calculate min/max values for proper y-axis scale
-    let allValues = [];
-    data.trends.forEach(t => {
-        allValues = allValues.concat(t.values);
-    });
-    const minVal = Math.min(...allValues);
-    const maxVal = Math.max(...allValues);
-    const valRange = maxVal - minVal;
+    // 过滤掉"教师人均企业实践时间"指标
+    const filteredTrends = data.trends.filter(t => t.name !== '教师人均企业实践时间');
     
-    // Determine appropriate interval based on value range
-    let interval = 5;
-    if (valRange <= 5) {
-        interval = 1;
-    } else if (valRange <= 10) {
-        interval = 2;
-    } else if (valRange <= 20) {
-        interval = 5;
-    } else {
-        interval = 10;
-    }
-    
-    const series = data.trends.map(t => ({
+    const series = filteredTrends.map(t => ({
         name: t.name,
         type: 'line',
         data: t.values,
@@ -532,13 +514,16 @@ async function renderTrendChart(majorId, year) {
     
     chart.setOption({
         tooltip: {trigger: 'axis'},
-        legend: {data: data.trends.map(t => t.name), top: 0, type: 'scroll'},
+        legend: {data: filteredTrends.map(t => t.name), top: 0, type: 'scroll'},
         xAxis: {type: 'category', data: data.years},
         yAxis: {
             type: 'value',
-            interval: interval,
-            min: Math.floor(minVal / interval) * interval,
-            max: Math.ceil(maxVal / interval) * interval
+            min: 0,
+            max: 1,
+            interval: 0.25,
+            axisLabel: {
+                formatter: '{value}'
+            }
         },
         series,
         grid: {top: 80, bottom: 30, left: 60, right: 20}
