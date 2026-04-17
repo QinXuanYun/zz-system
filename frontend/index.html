@@ -502,8 +502,8 @@ async function renderTrendChart(majorId, year) {
     const data = await api(`/api/major/${majorId}/trends`);
     const chart = echarts.init(document.getElementById('trendChart'));
     
-    // 过滤掉"教师人均企业实践时间"指标
-    const filteredTrends = data.trends.filter(t => t.name !== '教师人均企业实践时间');
+    // 过滤掉"教师人均企业实践时间"和"生师比"指标
+    const filteredTrends = data.trends.filter(t => t.name !== '教师人均企业实践时间' && t.name !== '生师比');
     
     const series = filteredTrends.map(t => ({
         name: t.name,
