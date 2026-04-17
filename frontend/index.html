@@ -257,7 +257,7 @@
             
             <!-- Ranking Section -->
             <div class="section" id="sec-ranking">
-                <div class="card"><div class="card-title">📈 专业对比 （得分）</div>
+                <div class="card"><div class="card-title">📈 专业对比</div>
                     <div class="compare-checkboxes" id="rankingCompareCbs"></div>
                     <div class="chart-container" id="rankingRadarCompare"></div>
                 </div>
@@ -741,6 +741,22 @@ async function renderRankingCompareChart() {
     
     const colors = ['#ff6b6b','#1890ff','#52c41a','#faad14','#9c27b0'];
     
+    // 获取指标格式信息
+    const barData = await api(`/api/indicator/bar?year=${currentYear}`);
+    
+    // 计算每个指标的最大值用于雷达图刻度
+    const indicatorMax = {};
+    comp.indicators.forEach(ind => {
+        const indData = barData.data[ind.id];
+        if (indData && indData.items) {
+            const maxVal = Math.max(...indData.items.map(item => item.value), 1);
+            // 向上取整到合适的刻度
+            indicatorMax[ind.id] = Math.ceil(maxVal * 1.1);
+        } else {
+            indicatorMax[ind.id] = 100;
+        }
+    });
+    
     // 获取所有专业的数据来计算每个指标的平均值
     const allComp = await api(`/api/compare?year=${currentYear}`);
     const indicatorCount = comp.indicators.length;
@@ -776,18 +792,37 @@ async function renderRankingCompareChart() {
         symbol: 'none'
     });
     
+    // 确保legend数据与series数据一致
+    const legendData = [...comp.majors.map(m => m.name), '各专业平均值'];
+    
     rankingCompareChartInst.setOption({
-        tooltip: {trigger: 'item'},
-        legend: {top: 0, data: [...comp.majors.map(m => m.name), '各专业平均值']},
+        tooltip: {
+            trigger: 'item',
+            formatter: function(params) {
+                let result = '<strong>' + params.name + '</strong><br/>';
+                params.value.forEach((val, idx) => {
+                    const indId = comp.indicators[idx].id;
+                    const indData = barData.data[indId];
+                    const unit = indData ? (indData.format === 'pct' ? '%' : indData.format === 'ratio' ? ':1' : indData.format === 'days' ? '天' : '') : '';
+                    result += comp.indicators[idx].name + ': ' + val + unit + '<br/>';
+                });
+                return result;
+            }
+        },
+        legend: {
+            top: 0,
+            data: legendData,
+            type: 'scroll'  // 当专业数量多时显示滚动条
+        },
         radar: {
-            indicator: comp.indicators.map(i => ({name: i.name, max: 100})),
+            indicator: comp.indicators.map(i => ({name: i.name, max: indicatorMax[i.id] || 100})),
             radius: '65%'
         },
         series: [{
             type: 'radar',
             data: seriesData
         }]
-    });
+    }, true);  // true 表示不合并，完全替换配置
 }
 
 // 保留原有的renderRankingList函数

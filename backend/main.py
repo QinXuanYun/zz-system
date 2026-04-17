@@ -560,7 +560,7 @@ async def get_major_detail(major_id: str, year: str = None):
 
 @app.get("/api/compare")
 async def get_compare(majors: str = None, year: str = None):
-    """Get radar chart comparison data"""
+    """Get radar chart comparison data - 返回原始数值"""
     years = get_years()
     if not years:
         raise HTTPException(status_code=404, detail="暂无数据")
@@ -588,7 +588,7 @@ async def get_compare(majors: str = None, year: str = None):
         major_meta = next((m for m in meta["majors"] if m["id"] == mid), None)
         name = major_meta["name"] if major_meta else mid
         
-        scores = []
+        values = []
         for ind_id in core_ids:
             val = mdata.get(ind_id, 0)
             ind = ind_dict.get(ind_id, {})
@@ -598,30 +598,15 @@ async def get_compare(majors: str = None, year: str = None):
             if fmt == "pct" and val > 1:
                 val = val / 100.0
             
+            # 返回原始数值，不是得分
             if fmt == "pct":
-                # 百分比指标：直接使用百分比值
-                score = val * 100
-            elif fmt == "ratio":
-                # 生师比：18以下为满分100，22以上为0分，中间线性插值
-                # 越低越好
-                if val <= 18:
-                    score = 100
-                elif val >= 22:
-                    score = 0
-                else:
-                    score = (22 - val) / (22 - 18) * 100
-            elif fmt == "days":
-                # 天数指标：30天为满分100，线性增长
-                score = min(val / 30 * 100, 100)
-            elif fmt == "num":
-                # 数值指标（如师均论文数）：1.5为满分100
-                score = min(val / 1.5 * 100, 100)
+                # 百分比指标：返回百分比数值（如 0.95 -> 95）
+                values.append(round(val * 100, 1))
             else:
-                score = val * 100
-            
-            scores.append(round(score, 1))
+                # 其他指标：返回原始数值
+                values.append(round(val, 2))
         
-        compare_data.append({"id": mid, "name": name, "scores": scores})
+        compare_data.append({"id": mid, "name": name, "scores": values})
     
     labels = [ind_dict[i]["name"] for i in core_ids if i in ind_dict]
     
@@ -786,7 +771,7 @@ async def get_indicator_bar(indicator_id: str = None, year: str = None):
                 "majorName": m["name"],
                 "value": normalized_val,
                 "rawValue": val,
-                "level": get_level_value(val, indicator_id, {indicator_id: ind_meta}, prev_val),
+                "level": get_level_value(val, indicator_id, ind_meta, prev_val),
                 "format": ind_format
             })
         
@@ -817,7 +802,7 @@ async def get_indicator_bar(indicator_id: str = None, year: str = None):
                     "majorName": m["name"],
                     "value": normalized_val,
                     "rawValue": val,
-                    "level": get_level_value(val, ind_id, {ind_id: ind}, prev_val),
+                    "level": get_level_value(val, ind_id, ind, prev_val),
                     "format": ind_format
                 })
             
@@ -1314,6 +1299,7 @@ async def generate_report(major_id: str, year: str = None):
         ind_id = ind["id"]
         current_val = mdata.get(ind_id, 0)
         higher_is_better = ind.get("higher_is_better", True)
+        fmt = ind.get("format", "num")
         
         # 获取所有专业该指标的值
         all_values = []
@@ -1330,22 +1316,24 @@ async def generate_report(major_id: str, year: str = None):
             # 对于越高越好的指标：最大值=最高分，最小值=最低分
             # 对于越低越好的指标（如生师比）：最小值=最高分，最大值=最低分
             if higher_is_better:
-                # 检查是否是最高分（最大值）
-                if current_val > 0 and abs(current_val - max_val) < 0.0001:
+                # 检查是否是最高分（最大值）- 使用相对容差
+                if current_val > 0 and abs(current_val - max_val) <= 0.01 * max(1, max_val):
                     max_count += 1
                 # 检查是否是最低分（最小值）
-                if current_val > 0 and abs(current_val - min_val) < 0.0001:
+                if current_val > 0 and abs(current_val - min_val) <= 0.01 * max(1, min_val):
                     min_count += 1
             else:
                 # 对于越低越好的指标，最小值是最高分
-                if current_val > 0 and abs(current_val - min_val) < 0.0001:
+                if current_val > 0 and abs(current_val - min_val) <= 0.01 * max(1, min_val):
                     max_count += 1
                 # 最大值是最低分
-                if current_val > 0 and abs(current_val - max_val) < 0.0001:
+                if current_val > 0 and abs(current_val - max_val) <= 0.01 * max(1, max_val):
                     min_count += 1
         
-        # 检查是否未得分（值为0或null）
+        # 检查是否未得分（值为0或null，或对于百分比指标小于0.01）
         if current_val is None or current_val == 0:
+            zero_count += 1
+        elif fmt == "pct" and current_val < 0.01:
             zero_count += 1
     
     report_lines.append(f" {major_meta['name']} 共有 {max_count} 个指标在各专业中取得了最高分，共有 {min_count} 个指标在各专业中取得了最低分，共有 {zero_count} 个指标未得分。")
