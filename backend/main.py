@@ -450,7 +450,11 @@ async def get_dashboard(year: str = None):
         for ind in meta["indicators"]:
             ind_id = ind["id"]
             val = mdata.get(ind_id, 0)
-            level = get_level_value(val, ind_id, ind)
+            # Get previous year value for blue level calculation
+            prev_val = None
+            if prev_year_data and mid in prev_year_data and ind_id in prev_year_data[mid]:
+                prev_val = prev_year_data[mid][ind_id]
+            level = get_level_value(val, ind_id, ind, prev_val)
             weight = ind.get("weight", 1)
             max_possible_score += weight * 100
             if level == "green":
@@ -512,13 +516,28 @@ async def get_major_detail(major_id: str, year: str = None):
     if not major_meta:
         raise HTTPException(status_code=404, detail="专业不存在")
     
+    # Get previous year data for blue level calculation
+    sorted_years = sorted(years)
+    prev_year_data = {}
+    if target_year in sorted_years:
+        year_idx = sorted_years.index(target_year)
+        if year_idx > 0:
+            prev_year = sorted_years[year_idx - 1]
+            prev_db_data = get_year_data(prev_year)
+            if prev_db_data and prev_year in prev_db_data["data"]:
+                prev_year_data = prev_db_data["data"][prev_year]
+    
     indicators = []
     ind_dict = {ind["id"]: ind for ind in meta["indicators"]}
     
     for ind in meta["indicators"]:
         ind_id = ind["id"]
         val = mdata.get(ind_id, 0)
-        level = get_level_value(val, ind_id, ind_dict)
+        # Get previous year value for blue level calculation
+        prev_val = None
+        if prev_year_data and major_id in prev_year_data and ind_id in prev_year_data[major_id]:
+            prev_val = prev_year_data[major_id][ind_id]
+        level = get_level_value(val, ind_id, ind_dict, prev_val)
         
         indicators.append({
             "id": ind_id,
@@ -628,6 +647,17 @@ async def get_ranking(year: str = None, indicator: str = None):
     meta = db_data["meta"]
     year_data = db_data["data"].get(target_year, {})
     
+    # Get previous year data for blue level calculation
+    sorted_years = sorted(years)
+    prev_year_data = {}
+    if target_year in sorted_years:
+        year_idx = sorted_years.index(target_year)
+        if year_idx > 0:
+            prev_year = sorted_years[year_idx - 1]
+            prev_db_data = get_year_data(prev_year)
+            if prev_db_data and prev_year in prev_db_data["data"]:
+                prev_year_data = prev_db_data["data"][prev_year]
+    
     def normalize_value(val, ind_format):
         if ind_format == "pct":
             return val * 100
@@ -654,7 +684,11 @@ async def get_ranking(year: str = None, indicator: str = None):
             ind_dict = {i["id"]: i for i in meta["indicators"]}
             for ind_id, ind in ind_dict.items():
                 val = mdata.get(ind_id, 0)
-                level = get_level_value(val, ind_id, ind)
+                # Get previous year value for blue level calculation
+                prev_val = None
+                if prev_year_data and mid in prev_year_data and ind_id in prev_year_data[mid]:
+                    prev_val = prev_year_data[mid][ind_id]
+                level = get_level_value(val, ind_id, ind, prev_val)
                 counts[level] += 1
             
             # Calculate weighted composite score
@@ -662,7 +696,11 @@ async def get_ranking(year: str = None, indicator: str = None):
             max_possible_score = 0
             for ind_id, ind in ind_dict.items():
                 val = mdata.get(ind_id, 0)
-                level = get_level_value(val, ind_id, ind)
+                # Get previous year value for blue level calculation
+                prev_val = None
+                if prev_year_data and mid in prev_year_data and ind_id in prev_year_data[mid]:
+                    prev_val = prev_year_data[mid][ind_id]
+                level = get_level_value(val, ind_id, ind, prev_val)
                 weight = ind.get("weight", 1)
                 max_possible_score += weight * 100
                 if level == "green":
@@ -706,6 +744,17 @@ async def get_indicator_bar(indicator_id: str = None, year: str = None):
     meta = db_data["meta"]
     year_data = db_data["data"].get(target_year, {})
     
+    # Get previous year data for blue level calculation
+    sorted_years = sorted(years)
+    prev_year_data = {}
+    if target_year in sorted_years:
+        year_idx = sorted_years.index(target_year)
+        if year_idx > 0:
+            prev_year = sorted_years[year_idx - 1]
+            prev_db_data = get_year_data(prev_year)
+            if prev_db_data and prev_year in prev_db_data["data"]:
+                prev_year_data = prev_db_data["data"][prev_year]
+    
     def normalize_value(val, ind_format):
         if ind_format == "pct":
             return val * 100
@@ -728,12 +777,16 @@ async def get_indicator_bar(indicator_id: str = None, year: str = None):
             mdata = year_data.get(mid, {})
             val = mdata.get(indicator_id, 0)
             normalized_val = normalize_value(val, ind_format)
+            # Get previous year value for blue level calculation
+            prev_val = None
+            if prev_year_data and mid in prev_year_data and indicator_id in prev_year_data[mid]:
+                prev_val = prev_year_data[mid][indicator_id]
             data.append({
                 "majorId": mid,
                 "majorName": m["name"],
                 "value": normalized_val,
                 "rawValue": val,
-                "level": get_level_value(val, indicator_id, {indicator_id: ind_meta}),
+                "level": get_level_value(val, indicator_id, {indicator_id: ind_meta}, prev_val),
                 "format": ind_format
             })
         
@@ -755,12 +808,16 @@ async def get_indicator_bar(indicator_id: str = None, year: str = None):
                 mdata = year_data.get(mid, {})
                 val = mdata.get(ind_id, 0)
                 normalized_val = normalize_value(val, ind_format)
+                # Get previous year value for blue level calculation
+                prev_val = None
+                if prev_year_data and mid in prev_year_data and ind_id in prev_year_data[mid]:
+                    prev_val = prev_year_data[mid][ind_id]
                 items.append({
                     "majorId": mid,
                     "majorName": m["name"],
                     "value": normalized_val,
                     "rawValue": val,
-                    "level": get_level_value(val, ind_id, {ind_id: ind}),
+                    "level": get_level_value(val, ind_id, {ind_id: ind}, prev_val),
                     "format": ind_format
                 })
             
@@ -837,12 +894,17 @@ async def get_major_trends(major_id: str):
         else:
             slope = 0
         
+        # Get previous year value for blue level calculation
+        prev_val = None
+        if len(values) >= 2:
+            prev_val = values[-2]  # 倒数第二个值是上一年的值
+        
         trends.append({
             "id": ind_id,
             "name": ind["name"],
             "values": values,
             "slope": round(slope, 4),
-            "level": get_level_value(values[-1], ind_id, ind_dict) if values else "green",
+            "level": get_level_value(values[-1], ind_id, ind_dict, prev_val) if values else "green",
             "format": ind.get("format", "num"),
             "unit": ind.get("unit", "")
         })
@@ -997,10 +1059,25 @@ async def generate_report(major_id: str, year: str = None):
                 "level": level_avg
             }
     
+    # Get previous year data for blue level calculation
+    sorted_years = sorted(years)
+    prev_year_data = {}
+    if target_year in sorted_years:
+        year_idx = sorted_years.index(target_year)
+        if year_idx > 0:
+            prev_year = sorted_years[year_idx - 1]
+            prev_db_data = get_year_data(prev_year)
+            if prev_db_data and prev_year in prev_db_data["data"]:
+                prev_year_data = prev_db_data["data"][prev_year]
+    
     for ind in meta["indicators"]:
         ind_id = ind["id"]
         val = mdata.get(ind_id, 0)
-        level = get_level_value(val, ind_id, ind_dict)
+        # Get previous year value for blue level calculation
+        prev_val = None
+        if prev_year_data and major_id in prev_year_data and ind_id in prev_year_data[major_id]:
+            prev_val = prev_year_data[major_id][ind_id]
+        level = get_level_value(val, ind_id, ind_dict, prev_val)
         
         # Calculate score based on level
         score = 0
@@ -1040,7 +1117,11 @@ async def generate_report(major_id: str, year: str = None):
     for ind in meta["indicators"]:
         ind_id = ind["id"]
         val = mdata.get(ind_id, 0)
-        level = get_level_value(val, ind_id, ind)
+        # Get previous year value for blue level calculation
+        prev_val = None
+        if prev_year_data and major_id in prev_year_data and ind_id in prev_year_data[major_id]:
+            prev_val = prev_year_data[major_id][ind_id]
+        level = get_level_value(val, ind_id, ind, prev_val)
         weight = ind.get("weight", 1)
         max_possible_score += weight * 100
         if level == "green":
