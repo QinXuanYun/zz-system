@@ -98,85 +98,85 @@ def init_indicator_meta():
             {
                 "indicator_id": "X2", "name": "生师比", "weight": 3, "unit": ":1",
                 "method": "折合在校生数/折合教师数",
-                "red_threshold": 25, "yellow_threshold": 18, "blue_threshold": 18, "green_threshold": 18,
+                "red_threshold": 18, "yellow_threshold": 18, "blue_threshold": 18, "green_threshold": 18,
                 "higher_is_better": 0, "format": "ratio"
             },
             {
                 "indicator_id": "X3", "name": "课程优良率", "weight": 3, "unit": "%",
                 "method": "学生评教'优良'课程比例",
-                "red_threshold": 0.70, "yellow_threshold": 0.90, "blue_threshold": 0.90, "green_threshold": 0.90,
+                "red_threshold": 0.70, "yellow_threshold": 0.85, "blue_threshold": 0.85, "green_threshold": 0.85,
                 "higher_is_better": 1, "format": "pct"
             },
             {
                 "indicator_id": "X4", "name": "技能证书通过率", "weight": 4, "unit": "%",
                 "method": "获相关职业资格证书学生比例",
-                "red_threshold": 0.60, "yellow_threshold": 0.85, "blue_threshold": 0.85, "green_threshold": 0.85,
+                "red_threshold": 0.60, "yellow_threshold": 0.75, "blue_threshold": 0.75, "green_threshold": 0.75,
                 "higher_is_better": 1, "format": "pct"
             },
             {
                 "indicator_id": "X5", "name": "毕业率", "weight": 3, "unit": "%",
                 "method": "当届毕业生实际毕业比例",
-                "red_threshold": 0.95, "yellow_threshold": 0.98, "blue_threshold": 0.98, "green_threshold": 0.98,
+                "red_threshold": 0.95, "yellow_threshold": 0.97, "blue_threshold": 0.97, "green_threshold": 0.97,
                 "higher_is_better": 1, "format": "pct"
             },
             {
                 "indicator_id": "X6", "name": "就业去向落实率", "weight": 5, "unit": "%",
                 "method": "截止当年底的毕业生就业率",
-                "red_threshold": 0.92, "yellow_threshold": 0.98, "blue_threshold": 0.98, "green_threshold": 0.98,
+                "red_threshold": 0.92, "yellow_threshold": 0.96, "blue_threshold": 0.96, "green_threshold": 0.96,
                 "higher_is_better": 1, "format": "pct"
             },
             {
                 "indicator_id": "X7", "name": "专业相关度", "weight": 4, "unit": "%",
                 "method": "就业岗位与专业相关毕业生比例",
-                "red_threshold": 0.68, "yellow_threshold": 0.75, "blue_threshold": 0.75, "green_threshold": 0.75,
+                "red_threshold": 0.68, "yellow_threshold": 0.70, "blue_threshold": 0.70, "green_threshold": 0.70,
                 "higher_is_better": 1, "format": "pct"
             },
             {
                 "indicator_id": "X8", "name": "在校生满意度", "weight": 4, "unit": "%",
                 "method": "在校生对所学专业的满意度",
-                "red_threshold": 0.91, "yellow_threshold": 0.97, "blue_threshold": 0.97, "green_threshold": 0.97,
+                "red_threshold": 0.91, "yellow_threshold": 0.95, "blue_threshold": 0.95, "green_threshold": 0.95,
                 "higher_is_better": 1, "format": "pct"
             },
             {
                 "indicator_id": "X9", "name": "毕业生满意度", "weight": 4, "unit": "%",
                 "method": "毕业生对所学专业的满意度",
-                "red_threshold": 0.92, "yellow_threshold": 0.97, "blue_threshold": 0.97, "green_threshold": 0.97,
+                "red_threshold": 0.92, "yellow_threshold": 0.95, "blue_threshold": 0.95, "green_threshold": 0.95,
                 "higher_is_better": 1, "format": "pct"
             },
             {
                 "indicator_id": "X10", "name": "企业订单学生占比", "weight": 4, "unit": "%",
                 "method": "专业接受企业订单且在该企业就业的学生比例",
-                "red_threshold": 0.08, "yellow_threshold": 0.20, "blue_threshold": 0.20, "green_threshold": 0.20,
+                "red_threshold": 0.08, "yellow_threshold": 0.15, "blue_threshold": 0.15, "green_threshold": 0.15,
                 "higher_is_better": 1, "format": "pct"
             },
             {
                 "indicator_id": "X11", "name": "双师型专任教师占比", "weight": 3, "unit": "%",
                 "method": "双师型专任教师占专任教师总数的百分比",
-                "red_threshold": 0.60, "yellow_threshold": 0.85, "blue_threshold": 0.85, "green_threshold": 0.85,
+                "red_threshold": 0.60, "yellow_threshold": 0.75, "blue_threshold": 0.75, "green_threshold": 0.75,
                 "higher_is_better": 1, "format": "pct"
             },
             {
                 "indicator_id": "X12", "name": "高级职称专任教师占比", "weight": 3, "unit": "%",
                 "method": "高级职称的专任教师占专任教师总数的比例",
-                "red_threshold": 0.15, "yellow_threshold": 0.35, "blue_threshold": 0.35, "green_threshold": 0.35,
+                "red_threshold": 0.15, "yellow_threshold": 0.25, "blue_threshold": 0.25, "green_threshold": 0.25,
                 "higher_is_better": 1, "format": "pct"
             },
             {
                 "indicator_id": "X13", "name": "高技术技能人才占比", "weight": 3, "unit": "%",
                 "method": "高技术技能人才占专任教师总数的比例",
-                "red_threshold": 0.05, "yellow_threshold": 0.15, "blue_threshold": 0.15, "green_threshold": 0.15,
+                "red_threshold": 0.05, "yellow_threshold": 0.10, "blue_threshold": 0.10, "green_threshold": 0.10,
                 "higher_is_better": 1, "format": "pct"
             },
             {
                 "indicator_id": "X14", "name": "师均论文数、著作数、课题数", "weight": 3, "unit": "项",
                 "method": "论文、著作、课题数与专任教师总数的比值",
-                "red_threshold": 0.5, "yellow_threshold": 1.5, "blue_threshold": 1.5, "green_threshold": 1.5,
+                "red_threshold": 0.5, "yellow_threshold": 1.0, "blue_threshold": 1.0, "green_threshold": 1.0,
                 "higher_is_better": 1, "format": "num"
             },
             {
                 "indicator_id": "X15", "name": "教师人均企业实践时间", "weight": 3, "unit": "天",
                 "method": "教师企业实践总天数与专任教师总数的比值",
-                "red_threshold": 18, "yellow_threshold": 40, "blue_threshold": 40, "green_threshold": 40,
+                "red_threshold": 18, "yellow_threshold": 30, "blue_threshold": 30, "green_threshold": 30,
                 "higher_is_better": 1, "format": "days"
             },
         ]
