@@ -571,7 +571,27 @@ async function renderSingleRadar(majorId, year) {
 // ==================== WARNINGS ====================
 async function initWarnings() {
     try {
+        console.log('Fetching warnings for year:', currentYear);
         const data = await api(`/api/warnings?year=${currentYear}`);
+        console.log('Warnings data:', data);
+        
+        if (!data.warnings || data.warnings.length === 0) {
+            console.log('No warnings found');
+            document.querySelector('#warningTable tbody').innerHTML = '<tr><td colspan="5" style="text-align:center;color:#999;">暂无预警数据</td></tr>';
+            // Reset chart
+            if (warningChart) {
+                warningChart.setOption({
+                    series: [{
+                        data: [
+                            {value: 0, name: '红色预警', itemStyle: {color: '#ff4d4f'}},
+                            {value: 0, name: '黄色预警', itemStyle: {color: '#faad14'}},
+                            {value: 0, name: '蓝色关注', itemStyle: {color: '#1890ff'}}
+                        ]
+                    }]
+                });
+            }
+            return;
+        }
         
         // Table
         const tbody = document.querySelector('#warningTable tbody');
