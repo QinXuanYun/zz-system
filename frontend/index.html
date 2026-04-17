@@ -368,7 +368,7 @@ async function initApp(targetYear = null) {
         yearSelect.value = currentYear;
         
         renderDashboard(dashData);
-        initWarnings();
+        await initWarnings();
     } catch(e) {
         console.error('Init error:', e);
     }
@@ -571,8 +571,13 @@ async function renderSingleRadar(majorId, year) {
 // ==================== WARNINGS ====================
 async function initWarnings() {
     try {
+        // Ensure currentYear is set
+        if (!currentYear) {
+            console.log('currentYear not set, skipping warnings');
+            return;
+        }
         console.log('Fetching warnings for year:', currentYear);
-        const data = await api(`/api/warnings?year=${currentYear}`);
+        const data = await api(`/api/warnings?year=${encodeURIComponent(currentYear)}`);
         console.log('Warnings data:', data);
         
         if (!data.warnings || data.warnings.length === 0) {
