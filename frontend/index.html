@@ -388,6 +388,11 @@ function renderDashboard(data) {
     document.getElementById('colorLegend').style.display = 'block';
 
     // Summary row
+    if (!data.summary) {
+        console.error('Dashboard summary is missing!');
+        document.getElementById('summaryRow').innerHTML = '<div style="color:red">数据加载错误</div>';
+        return;
+    }
     const s = data.summary;
     console.log('Dashboard summary:', s);
     document.getElementById('summaryRow').innerHTML = `
