@@ -1395,6 +1395,8 @@ async def generate_report(major_id: str, year: str = None):
     if blue_items:
         blue_names = ', '.join([item['name'] for item in blue_items[:3]])
         report_lines.append(f"3. 持续关注：保持蓝色指标 {blue_names}的稳定性，防止进一步下滑。")
+    else:
+        report_lines.append("3. 持续关注：无需要关注的负向波动指标，继续保持当前良好发展态势。")
     
     if green_items:
         green_names = ', '.join([item['name'] for item in green_items[:3]])
