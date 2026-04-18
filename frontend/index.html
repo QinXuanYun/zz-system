@@ -976,7 +976,15 @@ async function generateReport(majorId, majorName, btn) {
     document.getElementById('reportContent').textContent = '加载中...';
     
     try {
-        const data = await api(`/api/report/${majorId}?year=${currentYear}`);
+        // Get current time for report generation
+        const now = new Date();
+        const generateTime = now.getFullYear() + '-' + 
+            String(now.getMonth() + 1).padStart(2, '0') + '-' + 
+            String(now.getDate()).padStart(2, '0') + ' ' + 
+            String(now.getHours()).padStart(2, '0') + ':' + 
+            String(now.getMinutes()).padStart(2, '0') + ':' + 
+            String(now.getSeconds()).padStart(2, '0');
+        const data = await api(`/api/report/${majorId}?year=${currentYear}&generate_time=${encodeURIComponent(generateTime)}`);
         currentReportMajorId = majorId;
         
         document.getElementById('reportTitle').textContent = `${data.majorName} - ${data.year} 专业发展诊断报告`;

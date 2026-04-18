@@ -993,7 +993,7 @@ async def get_warnings(year: str = None):
 # Report Endpoints
 # ============================================================
 @app.get("/api/report/{major_id}")
-async def generate_report(major_id: str, year: str = None):
+async def generate_report(major_id: str, year: str = None, generate_time: str = None):
     """Generate comprehensive diagnostic report for a major"""
     years = get_years()
     if not years:
@@ -1012,6 +1012,9 @@ async def generate_report(major_id: str, year: str = None):
     major_meta = next((m for m in meta["majors"] if m["id"] == major_id), None)
     if not major_meta:
         raise HTTPException(status_code=404, detail="专业不存在")
+    
+    # Use provided generate_time or current time
+    report_generate_time = generate_time if generate_time else datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     
     ind_dict = {ind["id"]: ind for ind in meta["indicators"]}
     
@@ -1131,7 +1134,7 @@ async def generate_report(major_id: str, year: str = None):
     
     # 标题部分
     report_lines.append(f"【{major_meta['name']}】专业发展智诊报告")
-    report_lines.append(f"数据年度：{target_year} | 生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    report_lines.append(f"数据年度：{target_year} | 生成时间：{report_generate_time}")
     report_lines.append(f"{'-'*50}")
     
     # 预警数量表格
@@ -1274,7 +1277,7 @@ async def generate_report(major_id: str, year: str = None):
             elif rank_diff < 0:
                 rank_change_text = f"下降{abs(rank_diff)}个名次"
             else:
-                rank_change_text = "排名不变"
+                rank_change_text = "不变"
     
     # 输出新增段落
     report_lines.append(f"专业综合排名在第{rank}名。")
