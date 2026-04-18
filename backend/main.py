@@ -1366,7 +1366,9 @@ async def generate_report(major_id: str, year: str = None):
         for item in blue_items:
             val_str = format_value(item["value"], item["id"], item["format"])
             report_lines.append(f"• {item['name']}：{val_str}，正常但有负向波动，需分析波动原因，避免持续走低。")
-    report_lines.append(f" 本专业在{', '.join([item['name'] for item in blue_items[:3]]) if blue_items else '暂无'}方面表现优异，但较上一学年呈现下降趋势，需及时分析下降原因，保持平稳发展趋势。")
+        report_lines.append(f" 本专业在{', '.join([item['name'] for item in blue_items[:3]])}方面表现优异，但较上一学年呈现下降趋势，需及时分析下降原因，保持平稳发展趋势。")
+    else:
+        report_lines.append("无需要关注的负向波动指标。")
     report_lines.append("")
     
     # 绿色健康指标
