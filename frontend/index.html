@@ -332,8 +332,10 @@ function showMainApp() {
     initApp();
 }
 
-// API基础URL - 统一使用本地8089端口
-const API_BASE_URL = 'http://localhost:8089';
+// API基础URL - 自动检测环境
+const API_BASE_URL = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') 
+    ? 'http://localhost:8089' 
+    : 'http://218.81.168.16:8089';
 
 async function api(url, opts = {}) {
     const headers = {'Content-Type': 'application/json'};
