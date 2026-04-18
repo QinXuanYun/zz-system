@@ -613,7 +613,10 @@ async function initWarnings() {
             // formatVal already handles :1 suffix for ratio format
             let displayValue = formatVal(w.value, w.format);
             let changeText = '-';
-            console.log('Warning item:', w.majorName, w.indicatorName, 'change:', w.change, 'format:', w.format);
+            console.log('Warning item:', w.majorName, w.indicatorName, 'change:', w.change, 'format:', w.format, 'level:', w.level);
+            
+            // For blue warnings, must show change value if previous year data exists
+            // Blue warning definition: value >= green_threshold AND decreased by >= 5%
             if (w.change !== null && w.change !== undefined && !isNaN(w.change)) {
                 const changeVal = parseFloat(w.change);
                 const absChange = Math.abs(changeVal).toFixed(1);
@@ -631,6 +634,7 @@ async function initWarnings() {
                     changeText += '天';
                 }
             } else {
+                // No previous year data
                 changeText = '-（无上年数据）';
             }
             return `

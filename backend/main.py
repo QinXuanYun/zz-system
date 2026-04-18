@@ -955,20 +955,22 @@ async def get_warnings(year: str = None):
                 has_prev_data = prev_year_data and mid in prev_year_data and ind_id in prev_year_data[mid]
                 if has_prev_data:
                     prev_val = prev_year_data[mid][ind_id]
-                    fmt = ind.get("format", "pct")
-                    if fmt == "pct":
-                        # For percentage values, show change in percentage points
-                        # Both current and previous values are stored as decimals (e.g., 0.85 for 85%)
-                        change_val = (val - prev_val) * 100  # Convert to percentage points
-                    elif fmt == "ratio":
-                        # For ratio values (like student-teacher ratio), show absolute change
-                        change_val = val - prev_val
-                    elif fmt == "days":
-                        # For days values, show absolute change
-                        change_val = val - prev_val
-                    else:
-                        # For other numeric values
-                        change_val = val - prev_val
+                    # Ensure prev_val is valid (not None and > 0 for percentage calculations)
+                    if prev_val is not None and prev_val != 0:
+                        fmt = ind.get("format", "pct")
+                        if fmt == "pct":
+                            # For percentage values, show change in percentage points
+                            # Both current and previous values are stored as decimals (e.g., 0.85 for 85%)
+                            change_val = (val - prev_val) * 100  # Convert to percentage points
+                        elif fmt == "ratio":
+                            # For ratio values (like student-teacher ratio), show absolute change
+                            change_val = val - prev_val
+                        elif fmt == "days":
+                            # For days values, show absolute change
+                            change_val = val - prev_val
+                        else:
+                            # For other numeric values
+                            change_val = val - prev_val
                 
                 warnings_list.append({
                     "majorId": mid,
