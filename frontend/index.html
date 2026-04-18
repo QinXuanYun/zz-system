@@ -296,7 +296,7 @@ async function doLogin() {
     const errorEl = document.getElementById('loginError');
     
     try {
-        const resp = await fetch('/api/auth/login', {
+        const resp = await fetch(API_BASE_URL + '/api/auth/login', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({username, password})
@@ -332,10 +332,13 @@ function showMainApp() {
     initApp();
 }
 
+const API_BASE_URL = 'http://localhost:8089';
+
 async function api(url, opts = {}) {
     const headers = {'Content-Type': 'application/json'};
     if (token) headers['Authorization'] = 'Bearer ' + token;
-    const resp = await fetch(url, {...opts, headers});
+    const fullUrl = url.startsWith('http') ? url : API_BASE_URL + url;
+    const resp = await fetch(fullUrl, {...opts, headers});
     if (resp.status === 401) {
         doLogout();
         throw new Error('Unauthorized');
@@ -1140,7 +1143,7 @@ async function doImport() {
     statusEl.style.color = '#1890ff';
     
     try {
-        const resp = await fetch('/api/import', {
+        const resp = await fetch(API_BASE_URL + '/api/import', {
             method: 'POST',
             headers: {
                 'Authorization': 'Bearer ' + token
