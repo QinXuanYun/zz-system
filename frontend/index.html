@@ -417,7 +417,8 @@ function renderDashboard(data) {
     grid.innerHTML = data.majors.map(m => {
         // 使用综合排行榜得分
         const healthScore = m.score !== undefined ? m.score : m.healthScore;
-        const scoreColor = healthScore >= 80 ? '#52c41a' : healthScore >= 60 ? '#faad14' : healthScore >= 40 ? '#1890ff' : '#ff4d4f';
+        // 健康度进度条颜色统一为 RGB(0, 128, 128)
+        const scoreColor = 'rgb(0, 128, 128)';
         
         const scoreWidth = Math.min(healthScore, 100) / 100 * 100; // 100分制的进度条宽度
         
