@@ -621,23 +621,30 @@ async function initWarnings() {
             let changeText = '-';
             console.log('Warning item:', w.majorName, w.indicatorName, 'change:', w.change, 'format:', w.format, 'level:', w.level);
             
-            // For blue warnings, must show change value if previous year data exists
+            // For blue warnings, show "下降>=5%" to indicate the blue warning reason
             // Blue warning definition: value >= green_threshold AND decreased by >= 5%
             if (w.change !== null && w.change !== undefined && !isNaN(w.change)) {
                 const changeVal = parseFloat(w.change);
                 const absChange = Math.abs(changeVal).toFixed(1);
-                if (changeVal > 0) {
+                
+                // For blue warnings, always show "下降>=5%" if decrease >= 5%
+                if (w.level === 'blue' && changeVal < 0 && absChange >= 5) {
+                    changeText = `↓ 下降>=5%`;
+                } else if (changeVal > 0) {
                     changeText = `↑ 上升 ${absChange}`;
                 } else if (changeVal < 0) {
                     changeText = `↓ 下降 ${absChange}`;
                 } else {
                     changeText = '→ 不变';
                 }
-                // Add unit based on format
-                if (w.format === 'pct') {
-                    changeText += '%';
-                } else if (w.format === 'days') {
-                    changeText += '天';
+                
+                // Add unit based on format (except for blue warnings with >=5% display)
+                if (!changeText.includes('>=5%')) {
+                    if (w.format === 'pct') {
+                        changeText += '%';
+                    } else if (w.format === 'days') {
+                        changeText += '天';
+                    }
                 }
             } else {
                 // No previous year data
