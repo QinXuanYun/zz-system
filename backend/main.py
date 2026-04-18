@@ -164,6 +164,10 @@ def get_level_value(val: float, ind_id: str, ind_meta: Dict, prev_val: float = N
     if fmt == "pct" and val > 1:
         val = val / 100.0
     
+    # Also ensure prev_val is in correct format for comparison
+    if fmt == "pct" and prev_val is not None and prev_val > 1:
+        prev_val = prev_val / 100.0
+    
     # Get thresholds from database
     red_thresh = thresholds.get("red", 0)
     yellow_thresh = thresholds.get("yellow", 0.5)
