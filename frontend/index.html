@@ -353,6 +353,8 @@ async function api(url, opts = {}) {
 // ==================== INIT ====================
 let dashData = null;
 let warningChart = null;
+// 页面加载时间，用于报告生成时间
+const pageLoadTime = new Date();
 
 async function initApp(targetYear = null) {
     try {
@@ -457,7 +459,7 @@ function renderDashboardRanking(ranking) {
             <div class="ranking-name">${r.name}</div>
             <div class="ranking-bar">
                 <div class="ranking-bar-fill" style="width:${(r.score/maxScore*100).toFixed(0)}%;background:${barColor}">
-                    ${r.score}
+                    ${r.score.toFixed(2)}
                 </div>
             </div>
         </div>
@@ -976,14 +978,13 @@ async function generateReport(majorId, majorName, btn) {
     document.getElementById('reportContent').textContent = '加载中...';
     
     try {
-        // Get current time for report generation
-        const now = new Date();
-        const generateTime = now.getFullYear() + '-' + 
-            String(now.getMonth() + 1).padStart(2, '0') + '-' + 
-            String(now.getDate()).padStart(2, '0') + ' ' + 
-            String(now.getHours()).padStart(2, '0') + ':' + 
-            String(now.getMinutes()).padStart(2, '0') + ':' + 
-            String(now.getSeconds()).padStart(2, '0');
+        // Use page load time for report generation (consistent across all reports)
+        const generateTime = pageLoadTime.getFullYear() + '-' + 
+            String(pageLoadTime.getMonth() + 1).padStart(2, '0') + '-' + 
+            String(pageLoadTime.getDate()).padStart(2, '0') + ' ' + 
+            String(pageLoadTime.getHours()).padStart(2, '0') + ':' + 
+            String(pageLoadTime.getMinutes()).padStart(2, '0') + ':' + 
+            String(pageLoadTime.getSeconds()).padStart(2, '0');
         const data = await api(`/api/report/${majorId}?year=${currentYear}&generate_time=${encodeURIComponent(generateTime)}`);
         currentReportMajorId = majorId;
         
