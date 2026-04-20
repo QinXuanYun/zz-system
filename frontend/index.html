@@ -538,7 +538,7 @@ async function renderTrendChart(majorId, year) {
             max: 1.5,
             interval: 0.5,
             axisLabel: {
-                formatter: '{value}'
+                formatter: (value) => parseFloat(value).toFixed(2)
             }
         },
         series,
@@ -724,7 +724,7 @@ async function initRankingCompare() {
     try {
         // All majors for compare checkboxes
         const allMajors = dashData.majors;
-        rankingCompareMajorIds = allMajors.slice(0, 3).map(m => m.id); // default first 3
+        rankingCompareMajorIds = allMajors.slice(0, 3).map(m => String(m.id)); // default first 3
         
         const cbs = document.getElementById('rankingCompareCbs');
         cbs.innerHTML = allMajors.map(m => `
@@ -740,12 +740,14 @@ async function initRankingCompare() {
 }
 
 function toggleRankingCompare(majorId, el) {
-    const idx = rankingCompareMajorIds.indexOf(majorId);
+    // 转换为字符串确保类型一致
+    const id = String(majorId);
+    const idx = rankingCompareMajorIds.findIndex(m => String(m) === id);
     if (idx >= 0) {
         rankingCompareMajorIds.splice(idx, 1);
         el.classList.remove('checked');
     } else {
-        rankingCompareMajorIds.push(majorId);
+        rankingCompareMajorIds.push(id);
         el.classList.add('checked');
     }
     renderRankingCompareChart();
@@ -858,11 +860,11 @@ function renderRankingList(containerId, rankings, isRatio) {
         <div class="ranking-item">
             <div class="ranking-num r${i+1}">${i+1}</div>
             <div class="ranking-name">${r.name}</div>
-            <div class="ranking-bar">
-                <div class="ranking-bar-fill" style="width:${((r.score || r.value)/maxVal*100).toFixed(0)}%;background:${barColor}">
-                    ${(r.score || r.value).toFixed(2)}
+                <div class="ranking-bar">
+                    <div class="ranking-bar-fill" style="width:${((r.score || r.value)/maxVal*100).toFixed(0)}%;background:${barColor}">
+                        ${((r.score || r.value) || 0).toFixed(2)}
+                    </div>
                 </div>
-            </div>
         </div>
     `).join('');
 }
