@@ -470,15 +470,15 @@ async def get_dashboard(year: str = None):
             else:  # red
                 total_score += weight * 30
         
-        composite_score = round(total_score / max(max_possible_score, 1) * 100, 1) if max_possible_score > 0 else 0
-        
+        composite_score = round(total_score / max(max_possible_score, 1) * 100, 2) if max_possible_score > 0 else 0
+
         majors_list.append({
             "id": mid,
             "name": m["name"],
             "fullName": m["fullName"],
             "counts": counts,
             "details": details,
-            "healthScore": round(health_score * 100, 1),
+            "healthScore": round(health_score * 100, 2),
             "score": composite_score
         })
     
@@ -602,10 +602,10 @@ async def get_compare(majors: str = None, year: str = None):
             if fmt == "pct" and val > 1:
                 val = val / 100.0
             
-            # 返回原始数值，不是得分
+            # 返回原始数值，不是得分（统一保留2位小数）
             if fmt == "pct":
                 # 百分比指标：返回百分比数值（如 0.95 -> 95）
-                values.append(round(val * 100, 1))
+                values.append(round(val * 100, 2))
             else:
                 # 其他指标：返回原始数值
                 values.append(round(val, 2))

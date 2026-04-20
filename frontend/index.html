@@ -112,8 +112,8 @@
         
         /* Compare section */
         .compare-checkboxes { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
-        .compare-cb { display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 12px; border-radius: 6px; border: 1px solid #d9d9d9; font-size: 13px; transition: all 0.2s; user-select: none; }
-        .compare-cb.checked { border-color: #1890ff; background: #e6f7ff; color: #1890ff; }
+        .compare-cb { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 12px; border-radius: 6px; border: 1px solid #d9d9d9; font-size: 13px; transition: all 0.2s; user-select: none; }
+        .compare-cb:has(input:checked) { border-color: #1890ff; background: #e6f7ff; color: #1890ff; }
         
         /* Warning table */
         .warning-table { width: 100%; border-collapse: collapse; }
@@ -261,7 +261,7 @@
                     <div class="compare-checkboxes" id="rankingCompareCbs"></div>
                     <div class="chart-container" id="rankingRadarCompare"></div>
                 </div>
-                <div class="card"><div class="card-title">📊 各指标排行 （得分）</div>
+                <div class="card"><div class="card-title">📊 各指标排行 （数值）</div>
                     <div class="tab-bar" id="rankingTabs"></div>
                     <div class="chart-container" id="rankingByIndicator" style="height: 500px;"></div>
                 </div>
@@ -725,12 +725,15 @@ async function initRankingCompare() {
         // All majors for compare checkboxes
         const allMajors = dashData.majors;
         rankingCompareMajorIds = allMajors.slice(0, 3).map(m => String(m.id)); // default first 3
-        
+
         const cbs = document.getElementById('rankingCompareCbs');
         cbs.innerHTML = allMajors.map(m => `
-            <div class="compare-cb ${rankingCompareMajorIds.includes(m.id) ? 'checked' : ''}" onclick="toggleRankingCompare('${m.id}', this)">
+            <label class="compare-cb" style="display:inline-flex;align-items:center;margin:4px 8px 4px 0;cursor:pointer;">
+                <input type="checkbox" style="margin-right:4px;"
+                    ${rankingCompareMajorIds.includes(String(m.id)) ? 'checked' : ''}
+                    onchange="toggleRankingCompare('${m.id}')">
                 ${m.name}
-            </div>
+            </label>
         `).join('');
         
         await renderRankingCompareChart();
@@ -739,24 +742,23 @@ async function initRankingCompare() {
     }
 }
 
-function toggleRankingCompare(majorId, el) {
+function toggleRankingCompare(majorId) {
     // 转换为字符串确保类型一致
     const id = String(majorId);
-    const idx = rankingCompareMajorIds.findIndex(m => String(m) === id);
+    const idx = rankingCompareMajorIds.indexOf(id);
     if (idx >= 0) {
         rankingCompareMajorIds.splice(idx, 1);
-        el.classList.remove('checked');
     } else {
         rankingCompareMajorIds.push(id);
-        el.classList.add('checked');
     }
     renderRankingCompareChart();
 }
 
 async function renderRankingCompareChart() {
     if (rankingCompareMajorIds.length === 0) return;
-    
-    const comp = await api(`/api/compare?majors=${rankingCompareMajorIds.join(',')}&year=${currentYear}`);
+
+    const majorIds = rankingCompareMajorIds.map(id => String(id));
+    const comp = await api(`/api/compare?majors=${majorIds.join(',')}&year=${currentYear}`);
     
     if (!rankingCompareChartInst) {
         rankingCompareChartInst = echarts.init(document.getElementById('rankingRadarCompare'));
@@ -827,7 +829,7 @@ async function renderRankingCompareChart() {
                     const indId = comp.indicators[idx].id;
                     const indData = barData.data[indId];
                     const unit = indData ? (indData.format === 'pct' ? '%' : indData.format === 'ratio' ? ':1' : indData.format === 'days' ? '天' : '') : '';
-                    result += comp.indicators[idx].name + ': ' + val + unit + '<br/>';
+                    result += comp.indicators[idx].name + ': ' + val.toFixed(2) + unit + '<br/>';
                 });
                 return result;
             }
@@ -1245,7 +1247,7 @@ async function showDataPreview() {
                     const color = m.healthScore >= 80 ? '#52c41a' : m.healthScore >= 60 ? '#faad14' : m.healthScore >= 40 ? '#1890ff' : '#ff4d4f';
                     html += `<div style="padding:12px;background:#fff;border-radius:6px;border-left:3px solid ${color};">`;
                     html += `<div style="font-weight:500;margin-bottom:4px;">${m.name}</div>`;
-                    html += `<div style="font-size:12px;color:#666;">健康度: <span style="color:${color};font-weight:600;">${m.healthScore}</span></div>`;
+                    html += `<div style="font-size:12px;color:#666;">健康度: <span style="color:${color};font-weight:600;">${m.healthScore.toFixed(2)}</span></div>`;
                     html += `<div style="font-size:11px;color:#999;margin-top:4px;">`;
                     html += `🟢${m.counts.green} 🟡${m.counts.yellow} 🔴${m.counts.red}`;
                     html += '</div></div>';

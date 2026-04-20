@@ -266,12 +266,18 @@ def import_excel_data(year_name: str, majors_data: List[Dict]) -> bool:
     """Import Excel data into database"""
     db = SessionLocal()
     try:
-        # Check if year exists
-        year = db.query(Year).filter(Year.year_name == year_name).first()
-        if year:
-            # Delete existing data for this year
-            db.delete(year)
+        # Check if year exists - 先完整删除旧数据
+        existing_year = db.query(Year).filter(Year.year_name == year_name).first()
+        if existing_year:
+            # 手动删除关联数据（确保完全删除）
+            for major in existing_year.majors:
+                db.query(IndicatorValue).filter(IndicatorValue.major_id == major.id).delete(synchronize_session=False)
+            db.query(Major).filter(Major.year_id == existing_year.id).delete(synchronize_session=False)
+            db.delete(existing_year)
             db.commit()
+            # 关闭 session 清除缓存
+            db.close()
+            db = SessionLocal()
         
         # Create new year
         year = Year(year_name=year_name)
@@ -289,12 +295,12 @@ def import_excel_data(year_name: str, majors_data: List[Dict]) -> bool:
             db.add(major)
             db.flush()
             
-            # Add indicator values
+            # Add indicator values (保留两位小数)
             for ind_id, value in major_data["indicators"].items():
                 ind_val = IndicatorValue(
                     major_id=major.id,
                     indicator_id=ind_id,
-                    value=value
+                    value=round(float(value), 2) if value else 0
                 )
                 db.add(ind_val)
         
