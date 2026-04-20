@@ -38,9 +38,12 @@
 │   └── index.html
 ├── backend/            # 后端 API
 │   ├── main.py         # FastAPI 应用
-│   └── database.py     # 数据库模块
-└── fonts/              # 中文字体目录
-    └── .gitkeep
+│   ├── database.py     # 数据库模块
+│   └── venv/           # Python虚拟环境
+├── data/               # SQLite数据库存储
+├── excel/              # Excel数据导入目录
+├── pdf_reports/        # 生成的PDF报告目录
+└── DEPLOYMENT.md      # 部署文档
 ```
 
 | 层级 | 技术选型 |
@@ -101,14 +104,16 @@ python3 main.py
 zz-system/
 ├── backend/
 │   ├── main.py              # 应用入口，API 路由注册
-│   └── database.py          # 数据库模块
+│   ├── database.py          # 数据库模块
+│   ├── venv/                # Python虚拟环境（已配置）
+│   └── requirements.txt     # 依赖清单
 ├── frontend/
 │   └── index.html           # 前端单页应用
-├── fonts/                   # 中文字体目录（用于PDF中文显示）
-│   └── .gitkeep
-├── excel/                   # Excel数据导入目录
 ├── data/
+│   └── academic_report.db   # SQLite数据库
+├── excel/                   # Excel数据导入目录
 ├── pdf_reports/             # 生成的PDF报告目录
+├── DEPLOYMENT.md            # 部署文档
 ├── .gitignore
 └── README.md
 ```
@@ -118,10 +123,12 @@ zz-system/
 系统支持 Excel 数据导入，支持多专业、多年份数据管理。
 
 Excel 文件格式要求：
+- Excel文件名为学年数字名称，例如"2020学年" / "2020年"，系统会自动识别学年
 - 每个专业对应一个工作表
 - 工作表名为专业名称
 - 第一列：指标编号（1-15）
 - 第四列：指标数值
+- 导入时会自动清理该学年已有数据，支持重复导入
 
 ## API 接口
 
@@ -168,13 +175,20 @@ Excel 文件格式要求：
 
 ## 更新日志
 
-### v1.1.0 (2026-04-20)
+### v1.2.0 (2026-04-20)
 - ✨ **专业对比优化**：支持多专业对比，改用 checkbox 选择控件
 - ✨ **数据精度统一**：所有数据展示统一保留2位小数
 - 🐛 **修复问题**：
   - 修复专业对比选择专业后无法显示图表问题
-  - 修复数据导入时专业重复问题
+  - 修复数据导入时专业重复问题（导入时自动清理旧数据）
   - 修复排行页面专业对比点击错乱问题
+  - 修复各指标排行（数值）部分数据未保留两位小数问题
+- 📚 **文档更新**：新增DEPLOYMENT.md部署文档，优化README结构
+
+### v1.1.0 (2026-04-20)
+- 新增DEPLOYMENT.md部署文档
+- 优化.gitignore配置
+- 清理不必要的文件
 
 ### v1.0.0 (2026-04-初始版本)
 - 专业健康度综合评分
