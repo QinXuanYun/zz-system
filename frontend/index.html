@@ -426,7 +426,7 @@ function renderDashboard(data) {
         <div class="major-card" onclick="showMajorDetail('${m.id}')">
             <div class="major-card-header">
                 <div class="major-card-name">${m.name}</div>
-                <div class="major-card-score">健康度：<span style="color:${scoreColor}">${healthScore.toFixed(1)}</span></div>
+                <div class="major-card-score">健康度：<span style="color:${scoreColor}">${healthScore.toFixed(2)}</span></div>
             </div>
             <div class="health-bar"><div class="health-bar-fill" style="width:${scoreWidth}%;background:${scoreColor}"></div></div>
             <div style="margin-top:12px">
@@ -626,7 +626,7 @@ async function initWarnings() {
             // Blue warning definition: value >= green_threshold AND decreased by >= 5%
             if (w.change !== null && w.change !== undefined && !isNaN(w.change)) {
                 const changeVal = parseFloat(w.change);
-                const absChange = Math.abs(changeVal).toFixed(1);
+                const absChange = Math.abs(changeVal).toFixed(2);
                 
                 // For blue warnings, always show "下降>=5%" (unified display)
                 if (w.level === 'blue') {
@@ -860,7 +860,7 @@ function renderRankingList(containerId, rankings, isRatio) {
             <div class="ranking-name">${r.name}</div>
             <div class="ranking-bar">
                 <div class="ranking-bar-fill" style="width:${((r.score || r.value)/maxVal*100).toFixed(0)}%;background:${barColor}">
-                    ${(r.score || r.value).toFixed(1)}
+                    ${(r.score || r.value).toFixed(2)}
                 </div>
             </div>
         </div>
@@ -905,7 +905,7 @@ function renderRankingByIndicator(indId) {
                     'blue': '蓝色（较去年下降≥5%）',
                     'green': '绿色（正常范围）'
                 };
-                return `${item.majorName}<br/>数值: ${item.value.toFixed(1)}<br/>状态: ${levelText[item.level]}`;
+                return `${item.majorName}<br/>数值: ${item.value.toFixed(2)}<br/>状态: ${levelText[item.level]}`;
             }
         },
         grid: {
@@ -1068,19 +1068,19 @@ async function renderReportBar(data) {
             }
         },
         legend: {data: ['指标数值'], top: 0},
-        xAxis: {type: 'category', data: allItems.map(i => i.name), axisLabel: {rotate: 15, interval: 0}},
+        xAxis: {type: 'category', data: allItems.map(i => i.name), axisLabel: {rotate: 30, interval: 0, fontSize: 11}},
         yAxis: {type: 'value', max: 100, name: '数值/分数'},
         series: [
             {
                 name: '指标数值',
                 type: 'bar',
                 data: allItems.map(i => ({
-                    value: (i.value * 100).toFixed(1),
+                    value: (i.value * 100).toFixed(2),
                     itemStyle: {color: colors[i.level]}
                 }))
             }
         ],
-        grid: {top: 50, bottom: 60, left: 70, right: 30}
+        grid: {top: 50, bottom: 100, left: 70, right: 30}
     });
 }
 
@@ -1113,8 +1113,8 @@ function showSection(name) {
 // ==================== HELPERS ====================
 function formatVal(val, fmt) {
     if (val === null || val === undefined) return 'N/A';
-    if (fmt === 'pct') return (val * 100).toFixed(1) + '%';
-    if (fmt === 'ratio') return val.toFixed(1);
+    if (fmt === 'pct') return (val * 100).toFixed(2) + '%';
+    if (fmt === 'ratio') return val.toFixed(2);
     if (fmt === 'days') return val.toFixed(0) + '天';
     return val.toFixed(2);
 }
