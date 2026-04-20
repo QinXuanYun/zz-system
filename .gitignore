@@ -10,3 +10,7 @@ fonts/*.otf
 fonts/*.ttf
 fonts/*.ttc
 !fonts/.gitkeep
+backend/venv/
+excel/
+data/*.db
+backend/server.log
