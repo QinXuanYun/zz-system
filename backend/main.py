@@ -1414,7 +1414,7 @@ async def generate_report(major_id: str, year: str = None, generate_time: str = 
     report_lines.append("")
     report_lines.append(f"{'='*50}")
     report_lines.append("报告由专业发展智诊系统自动生成")
-    report_lines.append(f"生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    report_lines.append(f"生成时间：{report_generate_time}")
     
     report_text = "\n".join(report_lines)
     
@@ -1467,6 +1467,9 @@ async def download_report_pdf(major_id: str, year: str = None, token: str = None
     
     # Get report data
     report_data = await generate_report(major_id, target_year)
+    
+    # Use a consistent generation time for the entire PDF
+    pdf_generate_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     
     # Create PDF
     output_dir = Path(__file__).parent.parent / "pdf_reports"
@@ -1538,7 +1541,7 @@ async def download_report_pdf(major_id: str, year: str = None, token: str = None
     
     # Title section
     story.append(Paragraph(f"【{major_meta['name']}】专业发展诊断报告", title_style))
-    story.append(Paragraph(f"数据年度：{target_year} &nbsp;&nbsp; | &nbsp;&nbsp; 生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", subtitle_style))
+    story.append(Paragraph(f"数据年度：{target_year} &nbsp;&nbsp; | &nbsp;&nbsp; 生成时间：{pdf_generate_time}", subtitle_style))
     story.append(HRFlowable(width='100%', thickness=1, color=colors.HexColor('#e0e0e0')))
     story.append(Spacer(1, 0.4*cm))
     
@@ -1669,7 +1672,7 @@ async def download_report_pdf(major_id: str, year: str = None, token: str = None
         fontSize=10,
         textColor=colors.HexColor('#999999')
     )
-    story.append(Paragraph(f"报告由专业发展智诊系统自动生成 | 生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", footer_style))
+    story.append(Paragraph(f"报告由专业发展智诊系统自动生成 | 生成时间：{pdf_generate_time}", footer_style))
     
     # Build PDF
     doc.build(story)
