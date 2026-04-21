@@ -1174,7 +1174,8 @@ async def generate_report(major_id: str, year: str = None, generate_time: str = 
         m_composite = round(m_total_score / max(m_max_possible_score, 1) * 100, 1) if m_max_possible_score > 0 else 0
         all_majors_scores.append({"id": mid, "name": m["name"], "score": m_composite})
     
-    all_majors_scores.sort(key=lambda x: x["score"], reverse=True)
+    # 排序：先按得分降序，得分相同时按名称升序（保证稳定性）
+    all_majors_scores.sort(key=lambda x: (-x["score"], x["name"]), reverse=False)
     rank = next((i + 1 for i, m in enumerate(all_majors_scores) if m["id"] == major_id), len(all_majors_scores))
     total_majors = len(all_majors_scores)
     
