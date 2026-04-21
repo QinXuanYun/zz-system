@@ -1062,14 +1062,17 @@ async function renderReportBar(data) {
     const colors = {red: '#ff4d4f', yellow: '#faad14', blue: '#1890ff', green: '#52c41a'};
 
     chart.setOption({
-        tooltip: {
+            tooltip: {
             trigger: 'axis',
             formatter: function(params) {
-                let result = params[0].name + '<br/>';
-                params.forEach(p => {
-                    result += p.marker + ' ' + p.seriesName + ': ' + p.value + '<br/>';
-                });
-                return result;
+                const item = allItems[params[0].dataIndex];
+                let val = item.value;
+                const fmt = item.format || 'num';
+                if (fmt === 'pct') {
+                    val = val * 100;
+                }
+                const displayVal = parseFloat(val.toFixed(2));
+                return item.name + '<br/>指标数值: ' + displayVal + (fmt === 'pct' ? '%' : '');
             }
         },
         legend: {data: ['指标数值'], top: 0},
@@ -1079,10 +1082,19 @@ async function renderReportBar(data) {
             {
                 name: '指标数值',
                 type: 'bar',
-                data: allItems.map(i => ({
-                    value: (i.value * 100).toFixed(2),
-                    itemStyle: {color: colors[i.level]}
-                }))
+                data: allItems.map(i => {
+                    let val = i.value;
+                    const fmt = i.format || 'num';
+                    // 根据格式正确转换显示值
+                    if (fmt === 'pct') {
+                        val = val * 100; // 0-1小数转为百分比
+                    }
+                    // ratio/num/days 不需要乘100
+                    return {
+                        value: parseFloat(val.toFixed(2)),
+                        itemStyle: {color: colors[i.level]}
+                    };
+                })
             }
         ],
         grid: {top: 50, bottom: 100, left: 70, right: 30}
