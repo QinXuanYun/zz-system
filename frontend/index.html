@@ -516,7 +516,11 @@ function hideDetail() {
 
 async function renderTrendChart(majorId, year) {
     const data = await api(`/api/major/${majorId}/trends`);
-    const chart = echarts.init(document.getElementById('trendChart'));
+    const chartDom = document.getElementById('trendChart');
+    if (chartDom._echarts_instance) {
+        echarts.getInstanceByDom(chartDom)?.dispose();
+    }
+    const chart = echarts.init(chartDom);
     
     // 过滤掉"教师人均企业实践时间"和"生师比"指标
     const filteredTrends = data.trends.filter(t => t.name !== '教师人均企业实践时间' && t.name !== '生师比');
@@ -548,7 +552,11 @@ async function renderTrendChart(majorId, year) {
 
 async function renderSingleRadar(majorId, year) {
     const comp = await api(`/api/compare?majors=${majorId}&year=${year}`);
-    const chart = echarts.init(document.getElementById('radarSingle'));
+    const chartDom = document.getElementById('radarSingle');
+    if (chartDom._echarts_instance) {
+        echarts.getInstanceByDom(chartDom)?.dispose();
+    }
+    const chart = echarts.init(chartDom);
     
     const m = comp.majors[0];
     
@@ -671,7 +679,11 @@ async function initWarnings() {
         console.log('Warning counts:', counts);
         console.log('All warning levels:', data.warnings.map(w => w.level));
         
-        warningChart = echarts.init(document.getElementById('warningChart'));
+        const warningChartDom = document.getElementById('warningChart');
+        if (warningChartDom._echarts_instance) {
+            warningChart?.dispose();
+        }
+        warningChart = echarts.init(warningChartDom);
         warningChart.setOption({
             tooltip: {trigger: 'item'},
             legend: {top: 0, left: 'center'},
@@ -711,9 +723,11 @@ async function initRanking() {
     ).join('');
     
     // Initialize chart
-    if (!rankingByIndicatorChart) {
-        rankingByIndicatorChart = echarts.init(document.getElementById('rankingByIndicator'));
+    const rankingChartDom = document.getElementById('rankingByIndicator');
+    if (rankingChartDom._echarts_instance) {
+        rankingByIndicatorChart?.dispose();
     }
+    rankingByIndicatorChart = echarts.init(rankingChartDom);
     
     if (indIds.length > 0) {
         renderRankingByIndicator(indIds[0]);
@@ -760,9 +774,11 @@ async function renderRankingCompareChart() {
     const majorIds = rankingCompareMajorIds.map(id => String(id));
     const comp = await api(`/api/compare?majors=${majorIds.join(',')}&year=${currentYear}`);
     
-    if (!rankingCompareChartInst) {
-        rankingCompareChartInst = echarts.init(document.getElementById('rankingRadarCompare'));
+    const compareChartDom = document.getElementById('rankingRadarCompare');
+    if (compareChartDom._echarts_instance) {
+        rankingCompareChartInst?.dispose();
     }
+    rankingCompareChartInst = echarts.init(compareChartDom);
     
     const colors = ['#ff6b6b','#1890ff','#52c41a','#faad14','#9c27b0'];
     
@@ -1009,7 +1025,11 @@ async function generateReport(majorId, majorName, btn) {
 }
 
 async function renderReportRadar(data) {
-    const chart = echarts.init(document.getElementById('reportRadar'));
+    const chartDom = document.getElementById('reportRadar');
+    if (chartDom._echarts_instance) {
+        echarts.getInstanceByDom(chartDom)?.dispose();
+    }
+    const chart = echarts.init(chartDom);
     reportRadarChart = chart;
 
     const indicators = ['X1','X2','X3','X4','X5','X6','X7','X8','X9','X10','X11','X12','X13','X14','X15'];
@@ -1054,7 +1074,11 @@ async function renderReportRadar(data) {
 }
 
 async function renderReportBar(data) {
-    const chart = echarts.init(document.getElementById('reportBar'));
+    const chartDom = document.getElementById('reportBar');
+    if (chartDom._echarts_instance) {
+        echarts.getInstanceByDom(chartDom)?.dispose();
+    }
+    const chart = echarts.init(chartDom);
     reportBarChart = chart;
 
     // Use allItems from API (already sorted)
