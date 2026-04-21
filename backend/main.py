@@ -998,21 +998,31 @@ async def generate_report(major_id: str, year: str = None, generate_time: str = 
     years = get_years()
     if not years:
         raise HTTPException(status_code=404, detail="暂无数据")
-    
+
     target_year = year or years[-1]
     db_data = get_year_data(target_year)
-    
+
     if not db_data:
         raise HTTPException(status_code=404, detail="年份不存在")
-    
+
     meta = db_data["meta"]
     year_data = db_data["data"].get(target_year, {})
     mdata = year_data.get(major_id, {})
-    
+
+    # Get previous year data for blue level calculation
+    prev_year_data = {}
+    sorted_years = sorted(get_years())
+    target_year_idx = sorted_years.index(target_year) if target_year in sorted_years else -1
+    if target_year_idx > 0:
+        prev_year = sorted_years[target_year_idx - 1]
+        prev_db_data = get_year_data(prev_year)
+        if prev_db_data and prev_year in prev_db_data["data"]:
+            prev_year_data = prev_db_data["data"][prev_year]
+
     major_meta = next((m for m in meta["majors"] if m["id"] == major_id), None)
     if not major_meta:
         raise HTTPException(status_code=404, detail="专业不存在")
-    
+
     # Use provided generate_time or current time
     report_generate_time = generate_time if generate_time else datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     
@@ -1126,9 +1136,9 @@ async def generate_report(major_id: str, year: str = None, generate_time: str = 
             total_score += weight * 60
         else:  # red
             total_score += weight * 30
-    
-    composite_score = round(total_score / max(max_possible_score, 1) * 100, 1) if max_possible_score > 0 else 0
-    
+
+    composite_score = round(total_score / max(max_possible_score, 1) * 100, 2) if max_possible_score > 0 else 0
+
     # Generate report text - NEW FORMAT
     report_lines = []
     
@@ -1154,13 +1164,15 @@ async def generate_report(major_id: str, year: str = None, generate_time: str = 
     for m in meta["majors"]:
         mid = m["id"]
         mdata_check = year_data.get(mid, {})
+        prev_mdata_check = prev_year_data.get(mid, {}) if prev_year_data else {}
         # 计算加权得分
         m_total_score = 0
         m_max_possible_score = 0
         for ind_check in meta["indicators"]:
             ind_id_check = ind_check["id"]
             val_check = mdata_check.get(ind_id_check, 0)
-            level_check = get_level_value(val_check, ind_id_check, ind_check)
+            prev_val_check = prev_mdata_check.get(ind_id_check) if prev_mdata_check else None
+            level_check = get_level_value(val_check, ind_id_check, ind_check, prev_val_check)
             weight_check = ind_check.get("weight", 1)
             m_max_possible_score += weight_check * 100
             if level_check == "green":
