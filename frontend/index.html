@@ -1077,7 +1077,7 @@ async function renderReportBar(data) {
         },
         legend: {data: ['指标数值'], top: 0},
         xAxis: {type: 'category', data: allItems.map(i => i.name), axisLabel: {rotate: 30, interval: 0, fontSize: 11}},
-        yAxis: {type: 'value', max: 100, name: '数值/分数'},
+        yAxis: {type: 'value', name: '数值', min: 0},
         series: [
             {
                 name: '指标数值',
