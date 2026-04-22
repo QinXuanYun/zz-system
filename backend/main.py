@@ -1368,7 +1368,10 @@ async def generate_report(major_id: str, year: str = None, generate_time: str = 
         for item in red_items:
             val_str = format_value(item["value"], item["id"], item["format"])
             report_lines.append(f"• {item['name']}：{val_str}，数据不在正常范围内，建议立刻采取行动，扭转表现不佳的态势。")
-    report_lines.append(f" 本专业在{', '.join([item['name'] for item in red_items]) if red_items else '暂无'}方面处于劣势，需增强危机意识，立刻分析原因，提出改善举措，主动创新，寻求突破，弥补短板，借鉴表现优异的专业建设经验。")
+    if red_items:
+        report_lines.append(f" 本专业在{'、'.join([item['name'] for item in red_items])}方面处于劣势，需增强危机意识，立刻分析原因，提出改善措施，主动创新，寻求突破，弥补短板，借鉴表现优异的专业建设经验。")
+    else:
+        report_lines.append(" 本专业暂无方面处于劣势。")
     report_lines.append("")
     
     # 黄色预警指标
@@ -1378,7 +1381,10 @@ async def generate_report(major_id: str, year: str = None, generate_time: str = 
         for item in yellow_items:
             val_str = format_value(item["value"], item["id"], item["format"])
             report_lines.append(f"• {item['name']}：{val_str}，如未加以关注，数据将下滑至异常范围，建议密切关注。")
-    report_lines.append(f" 本专业在{', '.join([item['name'] for item in yellow_items]) if yellow_items else '暂无'}方面表现不佳，需树立全局意识，统筹发展；认清自身不足，深化改革，取长补短，改善现状。")
+    if yellow_items:
+        report_lines.append(f" 本专业在{'、'.join([item['name'] for item in yellow_items])}方面表现不佳，需树立全局意识，统筹发展；认清自身不足，深化改革，取长补短，改善现状。")
+    else:
+        report_lines.append(" 本专业暂无方面表现不佳。")
     report_lines.append("")
     
     # 蓝色关注指标
@@ -1388,9 +1394,10 @@ async def generate_report(major_id: str, year: str = None, generate_time: str = 
         for item in blue_items:
             val_str = format_value(item["value"], item["id"], item["format"])
             report_lines.append(f"• {item['name']}：{val_str}，正常但有负向波动，需分析波动原因，避免持续走低。")
-        report_lines.append(f" 本专业在{', '.join([item['name'] for item in blue_items])}方面表现优异，但较上一学年呈现下降趋势，需及时分析下降原因，保持平稳发展趋势。")
+    if blue_items:
+        report_lines.append(f" 本专业在{'、'.join([item['name'] for item in blue_items])}方面表现优异，但较上一学年呈现下降趋势，需及时分析下降原因，保持平稳发展趋势。")
     else:
-        report_lines.append("无需要关注的负向波动指标。")
+        report_lines.append(" 本专业暂无需要关注的负向波动指标。")
     report_lines.append("")
     
     # 绿色健康指标
@@ -1400,29 +1407,38 @@ async def generate_report(major_id: str, year: str = None, generate_time: str = 
         for item in green_items:
             val_str = format_value(item["value"], item["id"], item["format"])
             report_lines.append(f"• {item['name']}：{val_str}，趋势健康。")
-    report_lines.append(f" 本专业在{', '.join([item['name'] for item in green_items]) if green_items else '暂无'}方面表现优异，需继续保持。")
+    if green_items:
+        report_lines.append(f" 本专业在{'、'.join([item['name'] for item in green_items])}方面表现优异，需继续保持。")
+    else:
+        report_lines.append(" 本专业暂无方面表现优异。")
     report_lines.append("")
     
     # 三、综合改进建议
     report_lines.append("三、综合改进建议")
-    
+
+    suggestions = []
+
     if red_items:
         red_names = ', '.join([item['name'] for item in red_items])
-        report_lines.append(f"1. 寻求突破：提升红色异常指标 {red_names}，分析原因，精准突破；借鉴其他专业宝贵经验，明确特色化发展路径。")
-    
+        suggestions.append(f"• 寻求突破：提升红色异常指标 {red_names}，分析原因，精准突破；借鉴其他专业宝贵经验，明确特色化发展路径。")
+
     if yellow_items:
         yellow_names = ', '.join([item['name'] for item in yellow_items])
-        report_lines.append(f"2.重点提升：改善黄色预警指标 {yellow_names}，制定针对性改进计划，避免现状恶化。")
-    
+        suggestions.append(f"• 重点提升：改善黄色预警指标 {yellow_names}，制定针对性改进计划，避免现状恶化。")
+
     if blue_items:
         blue_names = ', '.join([item['name'] for item in blue_items])
-        report_lines.append(f"3. 持续关注：保持蓝色指标 {blue_names}的稳定性，防止进一步下滑。")
+        suggestions.append(f"• 持续关注：保持蓝色指标 {blue_names}的稳定性，防止进一步下滑。")
     else:
-        report_lines.append("3. 持续关注：无需要关注的负向波动指标，继续保持当前良好发展态势。")
-    
+        suggestions.append("• 持续关注：无需要关注的负向波动指标，继续保持当前良好发展态势。")
+
     if green_items:
         green_names = ', '.join([item['name'] for item in green_items[:3]])
-        report_lines.append(f"4.稳步发展：增强绿色指标 {green_names}的稳定性，及时总结建设经验并迁移至其他指标，实现本专业全面统筹发展。")
+        suggestions.append(f"• 稳步发展：增强绿色指标 {green_names}的稳定性，及时总结建设经验并迁移至其他指标，实现本专业全面统筹发展。")
+
+    # 按 红 → 黄 → 蓝 → 绿 顺序输出
+    for s in suggestions:
+        report_lines.append(s)
     
     report_lines.append("")
     report_lines.append(f"{'='*50}")

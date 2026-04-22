@@ -474,7 +474,7 @@ async function showMajorDetail(majorId) {
             counts[ind.level]++;
         });
         
-        document.getElementById('detailTitle').textContent = `${data.majorName} - ${data.year}（红色预警：${counts.red}，黄色预警：${counts.yellow}，绿色预警：${counts.green}）`;
+        document.getElementById('detailTitle').textContent = `${data.majorName} - ${data.year}（红色预警：${counts.red}，黄色预警：${counts.yellow}，蓝色关注：${counts.blue}，绿色正常：${counts.green}）`;
         document.getElementById('majorsGrid').style.display = 'none';
         document.querySelector('.card').style.display = 'none';
         document.getElementById('detailPanel').style.display = 'block';
