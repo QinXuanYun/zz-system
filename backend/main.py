@@ -1110,29 +1110,11 @@ async def generate_report(major_id: str, year: str = None, generate_time: str = 
         else:
             green_items.append(item)
     
-    # Calculate composite score based on indicator weights (same as dashboard ranking)
-    total_score = 0
-    max_possible_score = 0
-    for ind in meta["indicators"]:
-        ind_id = ind["id"]
-        val = mdata.get(ind_id, 0)
-        # Get previous year value for blue level calculation
-        prev_val = None
-        if prev_year_data and major_id in prev_year_data and ind_id in prev_year_data[major_id]:
-            prev_val = prev_year_data[major_id][ind_id]
-        level = get_level_value(val, ind_id, ind, prev_val)
-        weight = ind.get("weight", 1)
-        max_possible_score += weight * 100
-        if level == "green":
-            total_score += weight * 100
-        elif level == "blue":
-            total_score += weight * 85
-        elif level == "yellow":
-            total_score += weight * 60
-        else:  # red
-            total_score += weight * 30
-
-    composite_score = round(total_score / max(max_possible_score, 1) * 100, 2) if max_possible_score > 0 else 0
+    # 使用数据库中的composite_score（综合得分 = 总分/60×100）
+    # 从major_meta中获取（已在get_year_data中添加）
+    composite_score = major_meta.get("composite_score", 0)
+    if composite_score is None:
+        composite_score = 0
 
     # Generate report text - NEW FORMAT
     report_lines = []
@@ -1154,31 +1136,12 @@ async def generate_report(major_id: str, year: str = None, generate_time: str = 
     report_lines.append(f"专业综合排行榜（得分）：{composite_score:.1f}分。")
     
     # 新增：专业排名和评价
-    # 计算专业排名 - 使用与专业综合排行榜相同的加权得分计算方式
+    # 使用数据库中的composite_score进行排名
     all_majors_scores = []
     for m in meta["majors"]:
         mid = m["id"]
-        mdata_check = year_data.get(mid, {})
-        prev_mdata_check = prev_year_data.get(mid, {}) if prev_year_data else {}
-        # 计算加权得分
-        m_total_score = 0
-        m_max_possible_score = 0
-        for ind_check in meta["indicators"]:
-            ind_id_check = ind_check["id"]
-            val_check = mdata_check.get(ind_id_check, 0)
-            prev_val_check = prev_mdata_check.get(ind_id_check) if prev_mdata_check else None
-            level_check = get_level_value(val_check, ind_id_check, ind_check, prev_val_check)
-            weight_check = ind_check.get("weight", 1)
-            m_max_possible_score += weight_check * 100
-            if level_check == "green":
-                m_total_score += weight_check * 100
-            elif level_check == "blue":
-                m_total_score += weight_check * 85
-            elif level_check == "yellow":
-                m_total_score += weight_check * 60
-            else:
-                m_total_score += weight_check * 30
-        m_composite = round(m_total_score / max(m_max_possible_score, 1) * 100, 2) if m_max_possible_score > 0 else 0
+        # 从major数据中获取composite_score
+        m_composite = m.get("composite_score", 0) or 0
         all_majors_scores.append({"id": mid, "name": m["name"], "score": m_composite})
     
     # 排序：先按得分降序，得分相同时按名称升序（保证稳定性）
@@ -1213,56 +1176,21 @@ async def generate_report(major_id: str, year: str = None, generate_time: str = 
         year_idx = years_list.index(target_year)
         if year_idx > 0:
             prev_year = years_list[year_idx - 1]
-            # 获取上年数据计算加权得分
+            # 获取上年数据
             prev_db_data = get_year_data(prev_year)
             if prev_db_data:
                 prev_meta = prev_db_data["meta"]
-                prev_year_data = prev_db_data["data"].get(prev_year, {})
-                prev_mdata = prev_year_data.get(major_id, {})
-                
-                # 计算上年加权得分
-                prev_total_score = 0
-                prev_max_possible_score = 0
-                for ind in prev_meta["indicators"]:
-                    ind_id = ind["id"]
-                    val = prev_mdata.get(ind_id, 0)
-                    level = get_level_value(val, ind_id, ind)
-                    weight = ind.get("weight", 1)
-                    prev_max_possible_score += weight * 100
-                    if level == "green":
-                        prev_total_score += weight * 100
-                    elif level == "blue":
-                        prev_total_score += weight * 85
-                    elif level == "yellow":
-                        prev_total_score += weight * 60
-                    else:
-                        prev_total_score += weight * 30
-                
-                prev_composite_score = round(prev_total_score / max(prev_max_possible_score, 1) * 100, 1) if prev_max_possible_score > 0 else 0
-                
-                # 计算上年排名 - 使用加权得分
+
+                # 从meta中获取上年的composite_score
+                prev_major_meta = next((m for m in prev_meta["majors"] if m["id"] == major_id), None)
+                if prev_major_meta:
+                    prev_composite_score = prev_major_meta.get("composite_score", 0) or 0
+
+                # 计算上年排名 - 使用数据库中的composite_score
                 prev_all_majors = []
                 for m in prev_meta["majors"]:
                     mid = m["id"]
-                    mdata_p = prev_year_data.get(mid, {})
-                    # 计算加权得分
-                    p_total_score = 0
-                    p_max_possible_score = 0
-                    for ind_p in prev_meta["indicators"]:
-                        ind_id_p = ind_p["id"]
-                        val_p = mdata_p.get(ind_id_p, 0)
-                        level_p = get_level_value(val_p, ind_id_p, ind_p)
-                        weight_p = ind_p.get("weight", 1)
-                        p_max_possible_score += weight_p * 100
-                        if level_p == "green":
-                            p_total_score += weight_p * 100
-                        elif level_p == "blue":
-                            p_total_score += weight_p * 85
-                        elif level_p == "yellow":
-                            p_total_score += weight_p * 60
-                        else:
-                            p_total_score += weight_p * 30
-                    p_composite = round(p_total_score / max(p_max_possible_score, 1) * 100, 1) if p_max_possible_score > 0 else 0
+                    p_composite = m.get("composite_score", 0) or 0
                     prev_all_majors.append({"id": mid, "score": p_composite})
                 prev_all_majors.sort(key=lambda x: x["score"], reverse=True)
                 prev_rank = next((i + 1 for i, m in enumerate(prev_all_majors) if m["id"] == major_id), len(prev_all_majors))
