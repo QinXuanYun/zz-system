@@ -33,13 +33,15 @@ class Year(Base):
 class Major(Base):
     """Major/Professional information"""
     __tablename__ = "majors"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     year_id = Column(Integer, ForeignKey("years.id"))
     major_id = Column(String(50))  # e.g., "major_0"
     name = Column(String(100))  # Sheet name from Excel
     full_name = Column(String(200))
-    
+    total_score = Column(Float, default=0)  # 总分（满分60）
+    composite_score = Column(Float, default=0)  # 综合得分（百分制）
+
     year = relationship("Year", back_populates="majors")
     indicators = relationship("IndicatorValue", back_populates="major", cascade="all, delete-orphan")
 
@@ -250,12 +252,18 @@ def get_year_data(year_name: str) -> Dict[str, Any]:
             result["meta"]["majors"].append({
                 "id": major.major_id,
                 "name": major.name,
-                "fullName": major.full_name
+                "fullName": major.full_name,
+                "total_score": major.total_score or 0,
+                "composite_score": major.composite_score or 0
             })
-            
+
             result["data"][year_name][major.major_id] = {}
             for ind_val in major.indicators:
                 result["data"][year_name][major.major_id][ind_val.indicator_id] = ind_val.value
+
+            # Add total_score and composite_score to the major data
+            result["data"][year_name][major.major_id]["_total_score"] = major.total_score or 0
+            result["data"][year_name][major.major_id]["_composite_score"] = major.composite_score or 0
         
         return result
     finally:
@@ -286,15 +294,21 @@ def import_excel_data(year_name: str, majors_data: List[Dict]) -> bool:
         
         # Add majors and their indicators
         for idx, major_data in enumerate(majors_data):
+            # 计算综合得分 = (总分 / 60) × 100
+            total_score = major_data.get("total_score", 0)
+            composite_score = (total_score / 60 * 100) if total_score else 0
+
             major = Major(
                 year_id=year.id,
                 major_id=f"major_{idx}",
                 name=major_data["name"],
-                full_name=major_data["name"]
+                full_name=major_data["name"],
+                total_score=round(total_score, 2) if total_score else 0,
+                composite_score=round(composite_score, 2)
             )
             db.add(major)
             db.flush()
-            
+
             # Add indicator values (保留两位小数)
             for ind_id, value in major_data["indicators"].items():
                 ind_val = IndicatorValue(

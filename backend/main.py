@@ -332,10 +332,21 @@ async def import_excel(
             indicators = {}
             
             # Read rows 1-15 for indicators
-            for row_idx in range(1, min(16, len(rows))):
+            total_score = 0  # 默认总分
+            for row_idx in range(1, min(17, len(rows))):
                 row = rows[row_idx]
                 if row and len(row) >= 5 and row[0] is not None:
                     try:
+                        # 检查是否是"总分"行 (A17 = "总分" 或 17)
+                        if row[0] == "总分" or row[0] is None:
+                            # 读取E列的总分
+                            if len(row) >= 5 and row[4] is not None:
+                                try:
+                                    total_score = float(row[4])
+                                except:
+                                    total_score = 0
+                            continue
+
                         ind_num = int(row[0])
                         if ind_num > 15:
                             continue
@@ -344,22 +355,23 @@ async def import_excel(
                         # Handle empty or non-numeric values
                         if raw_val is None or raw_val == '':
                             raw_val = 0
-                        
+
                         val = float(raw_val)
-                        
+
                         # Convert percentage values (>=1) to decimal format (0-1)
                         # For percentage indicators (X1, X3-X13), if value > 1, assume it's 0-100 format and convert to 0-1
                         if ind_id in ['X1', 'X3', 'X4', 'X5', 'X6', 'X7', 'X8', 'X9', 'X10', 'X11', 'X12', 'X13']:
                             if val > 1:
                                 val = val / 100.0
-                        
+
                         indicators[ind_id] = val
                     except Exception:
                         pass
-            
+
             majors_data.append({
                 "name": major_name,
-                "indicators": indicators
+                "indicators": indicators,
+                "total_score": total_score
             })
         
         if not majors_data:
@@ -444,33 +456,11 @@ async def get_dashboard(year: str = None):
         total_yellow += counts["yellow"]
         total_blue += counts["blue"]
         total_green += counts["green"]
-        
-        health_score = (counts["green"] * 1.0 + counts["blue"] * 0.8 + 
-                       counts["yellow"] * 0.5 + counts["red"] * 0) / max(len(meta["indicators"]), 1)
-        
-        # Calculate composite score based on indicator weights
-        total_score = 0
-        max_possible_score = 0
-        for ind in meta["indicators"]:
-            ind_id = ind["id"]
-            val = mdata.get(ind_id, 0)
-            # Get previous year value for blue level calculation
-            prev_val = None
-            if prev_year_data and mid in prev_year_data and ind_id in prev_year_data[mid]:
-                prev_val = prev_year_data[mid][ind_id]
-            level = get_level_value(val, ind_id, ind, prev_val)
-            weight = ind.get("weight", 1)
-            max_possible_score += weight * 100
-            if level == "green":
-                total_score += weight * 100
-            elif level == "blue":
-                total_score += weight * 85
-            elif level == "yellow":
-                total_score += weight * 60
-            else:  # red
-                total_score += weight * 30
-        
-        composite_score = round(total_score / max(max_possible_score, 1) * 100, 2) if max_possible_score > 0 else 0
+
+        # 使用数据库中的composite_score作为健康度和得分
+        # 健康度 = 综合得分的数字结果（百分制）
+        composite_score = mdata.get("_composite_score", m.get("composite_score", 0))
+        health_score = composite_score
 
         majors_list.append({
             "id": mid,
@@ -478,10 +468,11 @@ async def get_dashboard(year: str = None):
             "fullName": m["fullName"],
             "counts": counts,
             "details": details,
-            "healthScore": round(health_score * 100, 2),
-            "score": composite_score
+            "healthScore": round(health_score, 2),
+            "score": round(composite_score, 2)
         })
-    
+
+    # 按综合得分降序排列
     majors_list.sort(key=lambda x: x["score"], reverse=True)
     ranking = [{"id": m["id"], "name": m["name"], "healthScore": m["healthScore"], "score": m["score"]} for m in majors_list]
     
@@ -654,9 +645,11 @@ async def get_ranking(year: str = None, indicator: str = None):
             return val
         elif ind_format == "days":
             return val
+        elif ind_format == "num":
+            return val  # 数值类型不乘以100
         else:
-            return val * 100
-    
+            return val
+
     rankings = []
     for m in meta["majors"]:
         mid = m["id"]
@@ -751,9 +744,11 @@ async def get_indicator_bar(indicator_id: str = None, year: str = None):
             return val
         elif ind_format == "days":
             return val
+        elif ind_format == "num":
+            return val  # 数值类型不乘以100
         else:
-            return val * 100
-    
+            return val
+
     if indicator_id:
         ind_meta = next((i for i in meta["indicators"] if i["id"] == indicator_id), None)
         if not ind_meta:
