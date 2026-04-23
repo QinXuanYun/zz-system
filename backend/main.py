@@ -398,6 +398,45 @@ async def get_available_years():
     years = get_years()
     return {"years": years, "default": years[-1] if years else None}
 
+@app.delete("/api/years/{year_name}")
+async def delete_year(year_name: str):
+    """Delete a year and all related data (majors, indicator values)"""
+    from database import SessionLocal
+    from database import Year, Major, IndicatorValue
+
+    db = SessionLocal()
+    try:
+        # Find the year
+        year = db.query(Year).filter(Year.year_name == year_name).first()
+        if not year:
+            raise HTTPException(status_code=404, detail=f"未找到年份: {year_name}")
+
+        year_id = year.id
+
+        # Delete in order: indicator_values -> majors -> years
+        # First get all major IDs for this year
+        majors = db.query(Major).filter(Major.year_id == year_id).all()
+        major_ids = [m.id for m in majors]
+
+        # Delete indicator values for these majors
+        if major_ids:
+            db.query(IndicatorValue).filter(IndicatorValue.major_id.in_(major_ids)).delete(synchronize_session=False)
+
+        # Delete majors
+        db.query(Major).filter(Major.year_id == year_id).delete(synchronize_session=False)
+
+        # Delete year
+        db.delete(year)
+
+        db.commit()
+
+        return {"success": True, "message": f"已删除年份: {year_name}"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"删除失败: {str(e)}")
+    finally:
+        db.close()
+
 # ============================================================
 # Dashboard Endpoints
 # ============================================================
