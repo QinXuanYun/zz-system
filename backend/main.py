@@ -324,7 +324,7 @@ async def import_excel(
         # Process all sheets as major data (starting from first sheet)
         majors_data = []
         
-        for idx in range(0, min(16, len(sheet_names))):
+        for idx in range(0, len(sheet_names)):
             ws = wb[sheet_names[idx]]
             rows = list(ws.iter_rows(values_only=True))
             
